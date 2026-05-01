@@ -27,6 +27,9 @@ export const LAN_AUTH_TIMEOUT_MS = 10_000; // 10 seconds for auth handshake
 export const BLOCKING_RETRY_INTERVAL_MS = 10 * 60 * 1000; // 10 minutes
 export const BLOCKING_RETRY_CHECK_INTERVAL_MS = 60 * 1000; // check every 60 seconds
 
+export const HOOK_HOLD_TIMEOUT_MS = 595_000; // just under Claude Code's 10-minute hook max
+export const HOOK_HOLD_TIMEOUT_SECONDS = HOOK_HOLD_TIMEOUT_MS / 1000;
+
 // Wire protocol version range. Relay and both peers negotiate on the
 // intersection of their [MIN, CURRENT] ranges during handshake. Bump CURRENT
 // for breaking routing-header / __relay_control / envelope changes; bump MIN
