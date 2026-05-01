@@ -253,6 +253,29 @@ export interface SyncRequestCommand {
   cursors: Array<{ session_id: string; last_seq: number }>;
 }
 
+export type NotificationDeliveryEventType =
+  | 'permission_request'
+  | 'user_question'
+  | 'plan_review'
+  | 'session_completed'
+  | 'session_error';
+
+/**
+ * Phone acknowledges that it received and processed a high-priority event
+ * that can surface a user notification. This is separate from resolving the
+ * underlying permission/question/plan: delivery ACK only means the phone has
+ * enough information to render or intentionally suppress a duplicate.
+ *
+ * Gated by PEER_CAPABILITIES.NOTIFICATION_DELIVERY_ACKS.
+ */
+export interface NotificationDeliveryAckCommand {
+  type: 'notification_delivery_ack';
+  session_id: string;
+  event_type: NotificationDeliveryEventType;
+  request_id: string;
+  delivered_at: number;
+}
+
 export type PhoneCommand =
   | NewSessionCommand
   | ResumeSessionCommand
@@ -268,7 +291,8 @@ export type PhoneCommand =
   | SetPreferencesCommand
   | SessionOutputAckCommand
   | VerifyHistoryCommand
-  | SyncRequestCommand;
+  | SyncRequestCommand
+  | NotificationDeliveryAckCommand;
 
 // ============================================================================
 // PC → Phone Events
@@ -306,6 +330,8 @@ export interface SessionEndedEvent {
   session_id: string;
   exit_code: number;
   end_reason?: string;
+  /** Stable id for session_error notification delivery ack when exit_code != 0. */
+  request_id?: string;
 }
 
 export interface SessionStatusEvent {
