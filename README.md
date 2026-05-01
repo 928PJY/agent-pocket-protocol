@@ -17,10 +17,12 @@ Both the relay and the daemon must agree on the wire format byte-for-byte. Keepi
 ## Workflow for protocol changes
 
 1. Edit `protocol.ts` / `capabilities.ts` / `constants.ts` / `features.ts` here.
-2. Run `npm test` locally. The contract tests verify capability/feature lists are well-formed; the wake-blob fixture tests verify the cross-language encrypted-payload format hasn't drifted.
-3. Bump `version` in `package.json`. Additive changes → minor. Removals/incompatible shapes → major (and follow the capability-deprecation pattern, never delete a capability constant while peers still announce it).
-4. Tag `vX.Y.Z` and push — CI runs the test suite, then publishes to npm. A failing test blocks the publish.
-5. In each consumer (`agent-pocket` monorepo, `agent-pocket-daemon` repo), bump the `agent-pocket-protocol` dependency, then implement the new behavior.
+2. Run `npm test` locally. The contract tests verify capability/feature lists are well-formed; the wake-blob fixture tests verify the cross-language encrypted-payload format has not drifted.
+3. Bump `version` in `package.json`. Additive changes -> minor. Removals or incompatible shapes -> major, following the capability-deprecation pattern.
+4. Add the release notes to `CHANGELOG.md` and merge the change to `main`.
+5. Publish only through GitHub Actions: create and push a signed or annotated tag named `vX.Y.Z` from the release commit. The publish workflow verifies the tag matches `package.json`, runs build and tests, then publishes to npm with provenance.
+6. Do not run `npm publish` from a local machine. The repository secret `NPM_TOKEN` must be configured in GitHub for the workflow to publish.
+7. In each consumer (`agent-pocket` monorepo, `agent-pocket-daemon` repo), bump the `agent-pocket-protocol` dependency, then implement the new behavior.
 
 ## Tests
 

@@ -11,6 +11,15 @@ constant while peers still announce it).
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-05-01
+
+### Added
+- `COMMAND_TYPES.NOTIFICATION_DELIVERY_ACK` and `NotificationDeliveryAckCommand` so phones can acknowledge receipt of high-priority notification-backed events by stable `event_type`, `session_id`, and `request_id`.
+- `PEER_CAPABILITIES.NOTIFICATION_DELIVERY_ACKS`, announced in `CURRENT_PEER_CAPABILITIES`, to gate delivery-ack behavior during rollout.
+- `SessionEndedEvent.request_id` so completion and error notifications can use the same delivery identity as pending-action notifications.
+- `RelayEnvelope.force_wake`, a relay-visible retry flag that lets ACK-missing wake retries send APNs even when the relay still believes the phone peer is online. The flag carries no session, request, or message content.
+
+
 ## [0.2.1] - 2026-05-01
 
 ### Changed
