@@ -542,6 +542,12 @@ export interface RelayEnvelope {
    */
   wake?: boolean;
   /**
+   * Force an APNs wake even when the relay currently believes the phone peer is
+   * online. This is only for delivery-ACK retry of high-priority events; it
+   * carries no relay-visible session/request content.
+   */
+  force_wake?: boolean;
+  /**
    * Opaque fixed-size encrypted wake summary for iOS Notification Service
    * Extension display. The relay may copy it into APNs payloads but must not
    * decrypt or interpret it.
