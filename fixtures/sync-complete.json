@@ -1,0 +1,9 @@
+{
+  "type": "sync_complete",
+  "request_id": "sync-018f9b21-c4e0-7000-8a3a-3a8c2e9d1234",
+  "delivered": [
+    { "session_id": "sess-abc-123", "last_seq": 57 },
+    { "session_id": "sess-def-456", "last_seq": 12 },
+    { "session_id": "sess-ghi-789", "last_seq": 3 }
+  ]
+}

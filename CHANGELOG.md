@@ -11,6 +11,22 @@ constant while peers still announce it).
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-05-01
+
+### Added
+- `PEER_CAPABILITIES.SYNC_BOUNDARY = 'messages.sync_boundary'` — gates the
+  explicit `sync_request` / `sync_complete` handshake used by the phone to
+  commit reconnect backfills in one transaction (see agent-pocket issue #160).
+- `SyncRequestCommand` (phone → daemon) and `SyncCompleteEvent` (daemon →
+  phone) message types, wired into `PhoneCommand` and `PcEvent` unions.
+- Fixtures + JSON-shape tests for both new messages.
+
+### Notes
+- `CURRENT_PEER_CAPABILITIES` deliberately does **not** include
+  `SYNC_BOUNDARY` yet. The constant is published so consumers can compile
+  against the type union; the daemon will announce the capability in a
+  follow-up release once the `sync_request` handler ships (Phase 2 of #160).
+
 ## [0.1.1] - 2026-05-01
 
 ### Added
