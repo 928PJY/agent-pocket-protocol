@@ -40,6 +40,14 @@ export const PEER_CAPABILITIES = {
 
   /** Completion events include a stable per-turn request id for deduplication. */
   COMPLETION_REQUEST_ID: 'completion.request_id',
+
+  /**
+   * Daemon supports the explicit sync_request / sync_complete handshake
+   * for deterministic backfill boundaries on reconnect. When absent, the
+   * phone falls back to applying buffered messages as they arrive (which
+   * causes UI flicker during long backfills).
+   */
+  SYNC_BOUNDARY: 'messages.sync_boundary',
 } as const;
 
 export type PeerCapability = typeof PEER_CAPABILITIES[keyof typeof PEER_CAPABILITIES];
@@ -56,4 +64,6 @@ export const CURRENT_PEER_CAPABILITIES: PeerCapability[] = [
   PEER_CAPABILITIES.TERMINAL_REMOTE_MESSAGE,
   PEER_CAPABILITIES.TERMINAL_INTERRUPT,
   PEER_CAPABILITIES.COMPLETION_REQUEST_ID,
+  // SYNC_BOUNDARY intentionally omitted — added in a follow-up release once
+  // the daemon implements the sync_request handler (see issue #160 Phase 2).
 ];

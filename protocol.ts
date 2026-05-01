@@ -235,6 +235,24 @@ export interface VerifyHistoryCommand {
   tail_seq?: number;
 }
 
+/**
+ * Phone asks the daemon to backfill any missed session_output events and then
+ * emit a SyncCompleteEvent terminator. The phone uses the terminator to commit
+ * a side-staged batch in one transaction, avoiding session-list flicker and
+ * chat-scroll churn caused by relay buffer drain on reconnect (see issue #160).
+ *
+ * `cursors` declares what the phone already has. Sessions absent from this
+ * list are treated as `last_seq = -1` — the daemon should backfill from the
+ * earliest retained seq for any session it knows about that the phone does not.
+ *
+ * Gated by PEER_CAPABILITIES.SYNC_BOUNDARY.
+ */
+export interface SyncRequestCommand {
+  type: 'sync_request';
+  request_id: string;
+  cursors: Array<{ session_id: string; last_seq: number }>;
+}
+
 export type PhoneCommand =
   | NewSessionCommand
   | ResumeSessionCommand
@@ -249,7 +267,8 @@ export type PhoneCommand =
   | GetHistoryCommand
   | SetPreferencesCommand
   | SessionOutputAckCommand
-  | VerifyHistoryCommand;
+  | VerifyHistoryCommand
+  | SyncRequestCommand;
 
 // ============================================================================
 // PC → Phone Events
@@ -404,6 +423,23 @@ export interface HistoryDivergenceEvent {
   reason: 'count_mismatch' | 'tail_seq_mismatch' | 'head_seq_mismatch';
 }
 
+/**
+ * Terminator for a SyncRequestCommand. Daemon emits this AFTER queuing every
+ * session_output event for the requested sync, so the phone can commit its
+ * side-staged batch in one transaction (see issue #160).
+ *
+ * `delivered` is the per-session terminal session_seq the daemon flushed for
+ * this sync. The phone validates `delivered.last_seq` against its own staged
+ * tail and triggers a `get_history` gap-fill if anything was dropped.
+ *
+ * Gated by PEER_CAPABILITIES.SYNC_BOUNDARY.
+ */
+export interface SyncCompleteEvent {
+  type: 'sync_complete';
+  request_id: string;
+  delivered: Array<{ session_id: string; last_seq: number }>;
+}
+
 export type PcEvent =
   | SessionStartedEvent
   | SessionOutputEvent
@@ -416,7 +452,8 @@ export type PcEvent =
   | FileContentEvent
   | ErrorEvent
   | MessageAckEvent
-  | HistoryDivergenceEvent;
+  | HistoryDivergenceEvent
+  | SyncCompleteEvent;
 
 // ============================================================================
 // Peer Hello (E2E, peer-to-peer)
