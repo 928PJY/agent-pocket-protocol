@@ -1,0 +1,16 @@
+{
+  "name": "wake-blob.swift-session-error",
+  "description": "Swift-generated encrypted wake blob fixture consumed by TypeScript tests.",
+  "session_recv_key_base64": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=",
+  "nonce_base64": "MDEyMzQ1Njc4OWFi",
+  "wake_blob_base64": "MDEyMzQ1Njc4OWFiPv3A9HCkxd6C/yerSl1zL9vBM04pFL0pisa7MsIPr2R9QicmuZ4yNMqOnxCypkmbLyzbqIPYQ+QCcOpCmSz01+h6ST3modnWNwuVUYQCkLrF53MbvcQz6Px57DqQT/bW5YExK5lp5NlC7cwz+ym7wea+t2XnAJOieVWUz7Eim8SoflTZ6SLx+znu8HDByuAXlEIHDbo1xMlREgX+aho4ITqAJ5LQ+/psCgTSHwTNhZxa4GBnZcuaVT3mBnYCIn2avbWX6B2quYgnDZmOOpPMUHKbvzLmnseeq17OBI5yTEAS/EV84THgUh/ZIPr94WGmqwB+qn2B7UVInH+2E0UKgu/8XiyrLNbI5OV9u6xI1YBfxW6FRtUGSEZ56Co/ydSxO31vSbtBtv7Y+Yr02tca3tgfH7CqVzwGwGDHln4rd1krtZCNDhqT8HWW+O0c7NvOpN22jErTNbGCIIPuX6eStSy4oc7E9/iT/c7JtjoXWv4bZyFU6qawzlhq8KWCsEH4NHwwOXjhGlEmDBubVwfb9ubPWWIGffhkPU5BogWAdBgaEfOMEFyXHm5CsJigPD2Y4I5DEJxi5sLHGJ+aMA3UFvWBiKQXNn0Du4TfipOKApectoHKVLSPTZJG3IY9FsHoy4gCiB4FAxhWWLJ0sNCjLviIYapanr5BSkrgMdMygURKAxgeKskVbj9UwTCfoDPS0zCST81BzlYjYouV5AiS5nE0QDQtwiXbSBsCDhiXxQfRsym63rjnhlsNGo8utbFpK3fUguuoS5552Tz8lQtf9L1Yf1gQCXqh0gdNQYcBs23S8G6hdlPDdRWc9+kP5ux5nc3jN5v21V+knfZvz49LyGqr9Wa5Ak5E72xK90VfbwOpkV8cdwvhiuVma/1awNlo+txan3ntlDbt4G31PgdbZUOLBsWRkIkANOCS51vVcldr5KLva82iKNxMxkDQKJzIml4qeHz4gTUpIJC84o27nDSOcWSi6kY/x+153aSQ4qRvKAemd5SdxVZVljSKzb61UIYb9wjmr0jxQnbMiLnZ+u8IQSg5WjsCwOcxl7x+y5VJq+zaCqskcRGRu27uinXOPdcY+lBycX8LBm7KU+k7NxChZR5Z/SAx7nU5EK6tRQa4etjdsxmUyK85XDDtUCOUZF1IMU/gdfHxBOAw0dw0saA61tclYEIzsoitPNJfcbCdqXYu0ItMEgjgURjA9R4ZVIl0AUxgEJnvFbWIM0W9pVYWl6f088XZ2ahlFITeR6Sr4zWEW/kI/nBBEvLnz4pD8D8iq3IhQhKyT6UFjO5+cliqm8UQQ7XSu8nIPHP5aVapDBQfcY49w6f4Pba19DxvMqW6NwZpfkuaNNuVceuaAi46mAA2GWRxmS5J5+MSxPY=",
+  "plaintext": "{\"type\":\"session_error\",\"session_name\":\"Swift Fixture Session\",\"body\":\"Swift generated wake blob\",\"category\":\"SESSION_ERROR\",\"session_id\":\"session-swift-fixture\",\"request_id\":\"request-swift-fixture\"}",
+  "payload": {
+    "type": "session_error",
+    "session_name": "Swift Fixture Session",
+    "body": "Swift generated wake blob",
+    "category": "SESSION_ERROR",
+    "session_id": "session-swift-fixture",
+    "request_id": "request-swift-fixture"
+  }
+}

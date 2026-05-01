@@ -1,5 +1,7 @@
 *.ts
 !*.d.ts
 tsconfig.json
+test
+fixtures
 .github
 .gitignore

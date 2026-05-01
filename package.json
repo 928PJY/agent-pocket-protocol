@@ -17,6 +17,7 @@
   },
   "scripts": {
     "build": "tsc",
+    "test": "node --import tsx --test test/*.test.ts",
     "prepublishOnly": "npm run build"
   },
   "repository": {
@@ -25,6 +26,7 @@
   },
   "license": "MIT",
   "devDependencies": {
+    "tsx": "^4.7.0",
     "typescript": "^5.4.0"
   }
 }

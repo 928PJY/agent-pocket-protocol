@@ -17,9 +17,19 @@ Both the relay and the daemon must agree on the wire format byte-for-byte. Keepi
 ## Workflow for protocol changes
 
 1. Edit `protocol.ts` / `capabilities.ts` / `constants.ts` / `features.ts` here.
-2. Bump `version` in `package.json`. Additive changes → minor. Removals/incompatible shapes → major (and follow the capability-deprecation pattern, never delete a capability constant while peers still announce it).
-3. Tag `vX.Y.Z` and push — CI publishes to npm.
-4. In each consumer (`agent-pocket` monorepo, `agent-pocket-daemon` repo), bump the `agent-pocket-protocol` dependency, then implement the new behavior.
+2. Run `npm test` locally. The contract tests verify capability/feature lists are well-formed; the wake-blob fixture tests verify the cross-language encrypted-payload format hasn't drifted.
+3. Bump `version` in `package.json`. Additive changes → minor. Removals/incompatible shapes → major (and follow the capability-deprecation pattern, never delete a capability constant while peers still announce it).
+4. Tag `vX.Y.Z` and push — CI runs the test suite, then publishes to npm. A failing test blocks the publish.
+5. In each consumer (`agent-pocket` monorepo, `agent-pocket-daemon` repo), bump the `agent-pocket-protocol` dependency, then implement the new behavior.
+
+## Tests
+
+```bash
+npm install
+npm test
+```
+
+Tests live alongside the source in `test/`, with synthetic fixtures in `fixtures/`. They are excluded from the published tarball — only the compiled `dist/` ships to npm.
 
 ## Install
 
