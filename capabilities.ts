@@ -48,6 +48,12 @@ export const PEER_CAPABILITIES = {
    * causes UI flicker during long backfills).
    */
   SYNC_BOUNDARY: 'messages.sync_boundary',
+
+  /**
+   * Phone acknowledges delivery/processing of high-priority notification-capable
+   * events so daemon retry is based on receipt, not relay online state.
+   */
+  NOTIFICATION_DELIVERY_ACKS: 'notifications.delivery_acks',
 } as const;
 
 export type PeerCapability = typeof PEER_CAPABILITIES[keyof typeof PEER_CAPABILITIES];
@@ -65,4 +71,5 @@ export const CURRENT_PEER_CAPABILITIES: PeerCapability[] = [
   PEER_CAPABILITIES.TERMINAL_INTERRUPT,
   PEER_CAPABILITIES.COMPLETION_REQUEST_ID,
   PEER_CAPABILITIES.SYNC_BOUNDARY,
+  PEER_CAPABILITIES.NOTIFICATION_DELIVERY_ACKS,
 ];
