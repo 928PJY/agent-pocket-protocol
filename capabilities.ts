@@ -64,6 +64,5 @@ export const CURRENT_PEER_CAPABILITIES: PeerCapability[] = [
   PEER_CAPABILITIES.TERMINAL_REMOTE_MESSAGE,
   PEER_CAPABILITIES.TERMINAL_INTERRUPT,
   PEER_CAPABILITIES.COMPLETION_REQUEST_ID,
-  // SYNC_BOUNDARY intentionally omitted — added in a follow-up release once
-  // the daemon implements the sync_request handler (see issue #160 Phase 2).
+  PEER_CAPABILITIES.SYNC_BOUNDARY,
 ];

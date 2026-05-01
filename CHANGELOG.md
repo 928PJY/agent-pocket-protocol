@@ -11,6 +11,15 @@ constant while peers still announce it).
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-05-01
+
+### Changed
+- `CURRENT_PEER_CAPABILITIES` now includes `SYNC_BOUNDARY`. The daemon's
+  `sync_request` handler is merged on `main` (agent-pocket-daemon PR #25),
+  so this release flips the announcement on. Phones that gate on
+  `peerCapabilities.has(SYNC_BOUNDARY)` will see it from any daemon
+  built against `agent-pocket-protocol@^0.2.1`.
+
 ## [0.2.0] - 2026-05-01
 
 ### Added
