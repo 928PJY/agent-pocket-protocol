@@ -16,3 +16,19 @@ jobs:
       - run: npm ci || npm install
       - run: npm run build
       - run: npm test
+
+      - name: Coverage report
+        id: coverage
+        run: |
+          set -o pipefail
+          npm run test:coverage 2>&1 | tee coverage.txt
+          node scripts/coverage-to-markdown.mjs < coverage.txt > coverage.md
+          cat coverage.md >> "$GITHUB_STEP_SUMMARY"
+        continue-on-error: true
+
+      - name: Comment coverage on PR
+        if: github.event_name == 'pull_request' && steps.coverage.outcome == 'success'
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          header: protocol-coverage
+          path: coverage.md
