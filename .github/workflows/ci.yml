@@ -41,4 +41,5 @@ jobs:
         with:
           files: coverage/lcov.info
           flags: protocol
+          token: ${{ secrets.CODECOV_TOKEN }}
           fail_ci_if_error: false
