@@ -1,5 +1,8 @@
 # agent-pocket-protocol
 
+[![CI](https://github.com/928PJY/agent-pocket-protocol/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/928PJY/agent-pocket-protocol/actions/workflows/ci.yml)
+[![codecov](https://codecov.io/gh/928PJY/agent-pocket-protocol/branch/main/graph/badge.svg)](https://codecov.io/gh/928PJY/agent-pocket-protocol)
+
 Wire protocol, peer capabilities, and shared constants for the [agent-pocket](https://github.com/928PJY/agent-pocket) ecosystem. Consumed by:
 
 - The relay server
