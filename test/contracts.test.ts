@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import { CURRENT_PEER_CAPABILITIES, PEER_CAPABILITIES } from '../capabilities.js';
 import { WIRE_VERSION_CURRENT, WIRE_VERSION_MIN } from '../constants.js';
 import { CURRENT_RELAY_FEATURES, RELAY_FEATURES } from '../features.js';
-import type { NotificationDeliveryAckCommand } from '../protocol.js';
+import type { CommandAckEvent, NotificationDeliveryAckCommand, PermissionMode, SetModelCommand, SetPermissionModeCommand } from '../protocol.js';
 import { RISK_CLASSIFICATION, RiskLevel } from '../protocol.js';
 
 function assertUniqueSubset<T>(current: readonly T[], all: Record<string, T>): void {
@@ -54,4 +54,38 @@ test('notification delivery ack command preserves stable event identity', () => 
   assert.equal(command.session_id, 'session-1');
   assert.equal(command.event_type, 'permission_request');
   assert.equal(command.request_id, 'request-1');
+});
+
+test('set_permission_mode command shape', () => {
+  const command: SetPermissionModeCommand = {
+    type: 'set_permission_mode',
+    request_id: 'req-1',
+    session_id: 'sess-1',
+    mode: 'plan',
+  };
+  assert.equal(command.type, 'set_permission_mode');
+  const allModes: PermissionMode[] = ['default', 'acceptEdits', 'plan', 'bypassPermissions'];
+  assert.equal(allModes.length, 4);
+});
+
+test('set_model command allows undefined model for default', () => {
+  const explicit: SetModelCommand = { type: 'set_model', request_id: 'r', session_id: 's', model: 'sonnet' };
+  const reset: SetModelCommand = { type: 'set_model', request_id: 'r', session_id: 's' };
+  assert.equal(explicit.model, 'sonnet');
+  assert.equal(reset.model, undefined);
+});
+
+test('command_ack event identifies which control command was acked', () => {
+  const ack: CommandAckEvent = {
+    type: 'command_ack',
+    request_id: 'r',
+    session_id: 's',
+    command: 'set_model',
+  };
+  assert.equal(ack.type, 'command_ack');
+  assert.equal(ack.command, 'set_model');
+});
+
+test('SESSION_CONTROL capability is announced', () => {
+  assert.ok(CURRENT_PEER_CAPABILITIES.includes(PEER_CAPABILITIES.SESSION_CONTROL));
 });

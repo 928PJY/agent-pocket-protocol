@@ -167,6 +167,40 @@ export interface InterruptSessionCommand {
   session_id: string;
 }
 
+/**
+ * Permission modes recognised by the SDK's `Query.setPermissionMode()`.
+ * - `default` — prompt for every tool that needs approval.
+ * - `acceptEdits` — auto-approve file edits, still prompt for higher-risk tools.
+ * - `plan` — planning mode: Claude proposes edits without executing them.
+ * - `bypassPermissions` — no prompts at all (caller is fully trusted).
+ */
+export type PermissionMode = 'default' | 'acceptEdits' | 'plan' | 'bypassPermissions';
+
+/**
+ * Phone asks the daemon to switch the SDK Query's active permission mode.
+ * Only valid for controller-mode (SDK-owned) sessions; observer mode
+ * returns an `error` event with code `not_supported`.
+ */
+export interface SetPermissionModeCommand {
+  type: 'set_permission_mode';
+  request_id: string;
+  session_id: string;
+  mode: PermissionMode;
+}
+
+/**
+ * Phone asks the daemon to switch the SDK Query's active model.
+ * Pass `model: undefined` to reset to the SDK's default model.
+ * Only valid for controller-mode (SDK-owned) sessions; observer mode
+ * returns an `error` event with code `not_supported`.
+ */
+export interface SetModelCommand {
+  type: 'set_model';
+  request_id: string;
+  session_id: string;
+  model?: string;
+}
+
 export interface ListSessionsCommand {
   type: 'list_sessions';
   request_id: string;
@@ -287,6 +321,8 @@ export type PhoneCommand =
   | QuestionResponseCommand
   | KillSessionCommand
   | InterruptSessionCommand
+  | SetPermissionModeCommand
+  | SetModelCommand
   | ListSessionsCommand
   | ReadFileCommand
   | EmergencyAbortCommand
@@ -469,6 +505,18 @@ export interface SyncCompleteEvent {
   delivered: Array<{ session_id: string; last_seq: number }>;
 }
 
+/**
+ * Generic ack for control commands that don't carry a payload.
+ * Sent in response to `set_permission_mode` and `set_model`.
+ * Failures are reported via the existing `ErrorEvent` keyed on `request_id`.
+ */
+export interface CommandAckEvent {
+  type: 'command_ack';
+  request_id: string;
+  session_id: string;
+  command: 'set_permission_mode' | 'set_model';
+}
+
 export type PcEvent =
   | SessionStartedEvent
   | SessionOutputEvent
@@ -482,7 +530,8 @@ export type PcEvent =
   | ErrorEvent
   | MessageAckEvent
   | HistoryDivergenceEvent
-  | SyncCompleteEvent;
+  | SyncCompleteEvent
+  | CommandAckEvent;
 
 // ============================================================================
 // Peer Hello (E2E, peer-to-peer)
