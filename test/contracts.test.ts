@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import { CURRENT_PEER_CAPABILITIES, PEER_CAPABILITIES } from '../capabilities.js';
 import { WIRE_VERSION_CURRENT, WIRE_VERSION_MIN } from '../constants.js';
 import { CURRENT_RELAY_FEATURES, RELAY_FEATURES } from '../features.js';
-import type { CommandAckEvent, ContextUsageEvent, ContextUsageInfo, GetContextUsageCommand, GetSupportedModelsCommand, ModelInfo, NewSessionCommand, NotificationDeliveryAckCommand, PermissionMode, SessionInfo, SessionPermissionModeChangedEvent, SessionStartedEvent, SetModelCommand, SetPermissionModeCommand, SupportedModelsEvent } from '../protocol.js';
+import type { AgentInfoLite, CommandAckEvent, ContextUsageEvent, ContextUsageInfo, GetContextUsageCommand, GetSupportedAgentsCommand, GetSupportedCommandsCommand, GetSupportedModelsCommand, ModelInfo, NewSessionCommand, NotificationDeliveryAckCommand, PermissionMode, SessionInfo, SessionPermissionModeChangedEvent, SessionStartedEvent, SetModelCommand, SetPermissionModeCommand, SlashCommandInfo, SupportedAgentsEvent, SupportedCommandsEvent, SupportedModelsEvent } from '../protocol.js';
 import { RISK_CLASSIFICATION, RiskLevel } from '../protocol.js';
 
 function assertUniqueSubset<T>(current: readonly T[], all: Record<string, T>): void {
@@ -213,4 +213,55 @@ test('ContextUsageInfo memory_files / mcp_tools are optional', () => {
   };
   assert.equal(minimal.memory_files, undefined);
   assert.equal(minimal.mcp_tools, undefined);
+});
+
+test('get_supported_commands command echoes session_id', () => {
+  const cmd: GetSupportedCommandsCommand = { type: 'get_supported_commands', request_id: 'r', session_id: 's' };
+  assert.equal(cmd.type, 'get_supported_commands');
+  assert.equal(cmd.session_id, 's');
+});
+
+test('supported_commands event carries the SDK SlashCommand list', () => {
+  const cmd: SlashCommandInfo = {
+    name: 'usage',
+    description: 'Show context usage',
+    argument_hint: '',
+    aliases: ['cost', 'stats'],
+  };
+  const ev: SupportedCommandsEvent = {
+    type: 'supported_commands',
+    request_id: 'r',
+    session_id: 's',
+    commands: [cmd],
+  };
+  assert.equal(ev.commands[0]!.name, 'usage');
+  assert.equal(ev.commands[0]!.aliases?.length, 2);
+});
+
+test('SlashCommandInfo aliases is optional', () => {
+  const c: SlashCommandInfo = { name: 'help', description: 'Help', argument_hint: '' };
+  assert.equal(c.aliases, undefined);
+});
+
+test('get_supported_agents command echoes session_id', () => {
+  const cmd: GetSupportedAgentsCommand = { type: 'get_supported_agents', request_id: 'r', session_id: 's' };
+  assert.equal(cmd.type, 'get_supported_agents');
+  assert.equal(cmd.session_id, 's');
+});
+
+test('supported_agents event carries the SDK AgentInfo list', () => {
+  const a: AgentInfoLite = { name: 'Explore', description: 'Codebase exploration', model: 'haiku' };
+  const ev: SupportedAgentsEvent = {
+    type: 'supported_agents',
+    request_id: 'r',
+    session_id: 's',
+    agents: [a],
+  };
+  assert.equal(ev.agents[0]!.name, 'Explore');
+  assert.equal(ev.agents[0]!.model, 'haiku');
+});
+
+test('AgentInfoLite model is optional', () => {
+  const a: AgentInfoLite = { name: 'Plan', description: 'Plan it' };
+  assert.equal(a.model, undefined);
 });
