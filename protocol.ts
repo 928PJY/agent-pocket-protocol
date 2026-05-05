@@ -221,6 +221,17 @@ export interface GetSupportedModelsCommand {
   session_id: string;
 }
 
+/**
+ * Phone asks the daemon for the SDK Query's current context-window usage.
+ * Reply is a `context_usage` event keyed on `request_id`.
+ * Observer-mode sessions reply with `error { code: 'not_supported' }`.
+ */
+export interface GetContextUsageCommand {
+  type: 'get_context_usage';
+  request_id: string;
+  session_id: string;
+}
+
 export interface ListSessionsCommand {
   type: 'list_sessions';
   request_id: string;
@@ -344,6 +355,7 @@ export type PhoneCommand =
   | SetPermissionModeCommand
   | SetModelCommand
   | GetSupportedModelsCommand
+  | GetContextUsageCommand
   | ListSessionsCommand
   | ReadFileCommand
   | EmergencyAbortCommand
@@ -602,6 +614,35 @@ export interface SupportedModelsEvent {
   models: ModelInfo[];
 }
 
+/**
+ * Mirrors the SDK's SDKControlGetContextUsageResponse. The phone uses
+ * `total_tokens`/`max_tokens`/`percentage` for the inline chat-toolbar chip
+ * and the rest of the fields for the detail sheet (categories, memory files,
+ * mcp tools breakdown, etc.). All fields except the four primary numbers
+ * and `model` are optional so future SDK additions don't break old phones.
+ */
+export interface ContextUsageInfo {
+  categories: Array<{ name: string; tokens: number; color: string; is_deferred?: boolean }>;
+  total_tokens: number;
+  max_tokens: number;
+  raw_max_tokens: number;
+  percentage: number;
+  model: string;
+  memory_files?: Array<{ path: string; type: string; tokens: number }>;
+  mcp_tools?: Array<{ name: string; server_name: string; tokens: number; is_loaded?: boolean }>;
+  deferred_builtin_tools?: Array<{ name: string; tokens: number; is_loaded: boolean }>;
+}
+
+/**
+ * Daemon's reply to `get_context_usage`. `request_id` echoes the command's id.
+ */
+export interface ContextUsageEvent {
+  type: 'context_usage';
+  request_id: string;
+  session_id: string;
+  usage: ContextUsageInfo;
+}
+
 export type PcEvent =
   | SessionStartedEvent
   | SessionOutputEvent
@@ -618,7 +659,8 @@ export type PcEvent =
   | SyncCompleteEvent
   | CommandAckEvent
   | SessionPermissionModeChangedEvent
-  | SupportedModelsEvent;
+  | SupportedModelsEvent
+  | ContextUsageEvent;
 
 // ============================================================================
 // Peer Hello (E2E, peer-to-peer)

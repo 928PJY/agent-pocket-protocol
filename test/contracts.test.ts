@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import { CURRENT_PEER_CAPABILITIES, PEER_CAPABILITIES } from '../capabilities.js';
 import { WIRE_VERSION_CURRENT, WIRE_VERSION_MIN } from '../constants.js';
 import { CURRENT_RELAY_FEATURES, RELAY_FEATURES } from '../features.js';
-import type { CommandAckEvent, GetSupportedModelsCommand, ModelInfo, NewSessionCommand, NotificationDeliveryAckCommand, PermissionMode, SessionInfo, SessionPermissionModeChangedEvent, SessionStartedEvent, SetModelCommand, SetPermissionModeCommand, SupportedModelsEvent } from '../protocol.js';
+import type { CommandAckEvent, ContextUsageEvent, ContextUsageInfo, GetContextUsageCommand, GetSupportedModelsCommand, ModelInfo, NewSessionCommand, NotificationDeliveryAckCommand, PermissionMode, SessionInfo, SessionPermissionModeChangedEvent, SessionStartedEvent, SetModelCommand, SetPermissionModeCommand, SupportedModelsEvent } from '../protocol.js';
 import { RISK_CLASSIFICATION, RiskLevel } from '../protocol.js';
 
 function assertUniqueSubset<T>(current: readonly T[], all: Record<string, T>): void {
@@ -170,4 +170,47 @@ test('ModelInfo optional effort levels are typed as the documented union', () =>
     supported_effort_levels: ['low', 'medium', 'high', 'xhigh', 'max'],
   };
   assert.deepEqual(m.supported_effort_levels, ['low', 'medium', 'high', 'xhigh', 'max']);
+});
+
+test('get_context_usage command echoes session_id', () => {
+  const cmd: GetContextUsageCommand = { type: 'get_context_usage', request_id: 'r', session_id: 's' };
+  assert.equal(cmd.type, 'get_context_usage');
+  assert.equal(cmd.session_id, 's');
+});
+
+test('context_usage event carries the SDK usage breakdown keyed by request_id', () => {
+  const usage: ContextUsageInfo = {
+    categories: [
+      { name: 'system_prompt', tokens: 1200, color: '#abc' },
+      { name: 'messages', tokens: 8900, color: '#def', is_deferred: false },
+    ],
+    total_tokens: 10100,
+    max_tokens: 200000,
+    raw_max_tokens: 200000,
+    percentage: 5.05,
+    model: 'claude-sonnet-4-6',
+  };
+  const ev: ContextUsageEvent = {
+    type: 'context_usage',
+    request_id: 'r',
+    session_id: 's',
+    usage,
+  };
+  assert.equal(ev.type, 'context_usage');
+  assert.equal(ev.usage.total_tokens, 10100);
+  assert.equal(ev.usage.categories.length, 2);
+  assert.equal(ev.usage.model, 'claude-sonnet-4-6');
+});
+
+test('ContextUsageInfo memory_files / mcp_tools are optional', () => {
+  const minimal: ContextUsageInfo = {
+    categories: [],
+    total_tokens: 0,
+    max_tokens: 200000,
+    raw_max_tokens: 200000,
+    percentage: 0,
+    model: 'opus',
+  };
+  assert.equal(minimal.memory_files, undefined);
+  assert.equal(minimal.mcp_tools, undefined);
 });
