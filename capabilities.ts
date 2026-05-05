@@ -54,6 +54,14 @@ export const PEER_CAPABILITIES = {
    * events so daemon retry is based on receipt, not relay online state.
    */
   NOTIFICATION_DELIVERY_ACKS: 'notifications.delivery_acks',
+
+  /**
+   * Daemon understands `set_permission_mode` and `set_model` commands for
+   * controller-mode sessions and replies with `command_ack` (or `error`).
+   * Old daemons would log "Unknown command type" — phone must gate the
+   * picker UI on this capability.
+   */
+  SESSION_CONTROL: 'session.control',
 } as const;
 
 export type PeerCapability = typeof PEER_CAPABILITIES[keyof typeof PEER_CAPABILITIES];
@@ -72,4 +80,5 @@ export const CURRENT_PEER_CAPABILITIES: PeerCapability[] = [
   PEER_CAPABILITIES.COMPLETION_REQUEST_ID,
   PEER_CAPABILITIES.SYNC_BOUNDARY,
   PEER_CAPABILITIES.NOTIFICATION_DELIVERY_ACKS,
+  PEER_CAPABILITIES.SESSION_CONTROL,
 ];
