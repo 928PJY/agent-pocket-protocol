@@ -210,6 +210,17 @@ export interface SetModelCommand {
   model?: string;
 }
 
+/**
+ * Phone asks the daemon to enumerate the models the SDK Query knows about.
+ * Reply is a `supported_models` event keyed on `request_id`.
+ * Observer-mode sessions reply with `error { code: 'not_supported' }`.
+ */
+export interface GetSupportedModelsCommand {
+  type: 'get_supported_models';
+  request_id: string;
+  session_id: string;
+}
+
 export interface ListSessionsCommand {
   type: 'list_sessions';
   request_id: string;
@@ -332,6 +343,7 @@ export type PhoneCommand =
   | InterruptSessionCommand
   | SetPermissionModeCommand
   | SetModelCommand
+  | GetSupportedModelsCommand
   | ListSessionsCommand
   | ReadFileCommand
   | EmergencyAbortCommand
@@ -563,6 +575,33 @@ export interface SessionPermissionModeChangedEvent {
   mode: PermissionMode;
 }
 
+/**
+ * Mirrors the Claude Agent SDK's ModelInfo type. Daemon enumerates these via
+ * `query.supportedModels()` for controller-mode sessions. Phone consumes the
+ * list to populate the chat-toolbar model picker.
+ */
+export interface ModelInfo {
+  value: string;
+  display_name: string;
+  description: string;
+  supports_effort?: boolean;
+  supported_effort_levels?: Array<'low' | 'medium' | 'high' | 'xhigh' | 'max'>;
+  supports_adaptive_thinking?: boolean;
+  supports_fast_mode?: boolean;
+  supports_auto_mode?: boolean;
+}
+
+/**
+ * Daemon's reply to `get_supported_models`. `request_id` echoes the command's
+ * id so the phone can correlate the response.
+ */
+export interface SupportedModelsEvent {
+  type: 'supported_models';
+  request_id: string;
+  session_id: string;
+  models: ModelInfo[];
+}
+
 export type PcEvent =
   | SessionStartedEvent
   | SessionOutputEvent
@@ -578,7 +617,8 @@ export type PcEvent =
   | HistoryDivergenceEvent
   | SyncCompleteEvent
   | CommandAckEvent
-  | SessionPermissionModeChangedEvent;
+  | SessionPermissionModeChangedEvent
+  | SupportedModelsEvent;
 
 // ============================================================================
 // Peer Hello (E2E, peer-to-peer)

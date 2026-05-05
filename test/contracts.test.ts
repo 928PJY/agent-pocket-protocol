@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import { CURRENT_PEER_CAPABILITIES, PEER_CAPABILITIES } from '../capabilities.js';
 import { WIRE_VERSION_CURRENT, WIRE_VERSION_MIN } from '../constants.js';
 import { CURRENT_RELAY_FEATURES, RELAY_FEATURES } from '../features.js';
-import type { CommandAckEvent, NewSessionCommand, NotificationDeliveryAckCommand, PermissionMode, SessionInfo, SessionPermissionModeChangedEvent, SessionStartedEvent, SetModelCommand, SetPermissionModeCommand } from '../protocol.js';
+import type { CommandAckEvent, GetSupportedModelsCommand, ModelInfo, NewSessionCommand, NotificationDeliveryAckCommand, PermissionMode, SessionInfo, SessionPermissionModeChangedEvent, SessionStartedEvent, SetModelCommand, SetPermissionModeCommand, SupportedModelsEvent } from '../protocol.js';
 import { RISK_CLASSIFICATION, RiskLevel } from '../protocol.js';
 
 function assertUniqueSubset<T>(current: readonly T[], all: Record<string, T>): void {
@@ -135,4 +135,39 @@ test('command_ack event identifies which control command was acked', () => {
 
 test('SESSION_CONTROL capability is announced', () => {
   assert.ok(CURRENT_PEER_CAPABILITIES.includes(PEER_CAPABILITIES.SESSION_CONTROL));
+});
+
+test('get_supported_models command echoes session_id', () => {
+  const cmd: GetSupportedModelsCommand = { type: 'get_supported_models', request_id: 'r', session_id: 's' };
+  assert.equal(cmd.type, 'get_supported_models');
+  assert.equal(cmd.session_id, 's');
+});
+
+test('supported_models event carries the models array keyed by request_id', () => {
+  const model: ModelInfo = {
+    value: 'claude-sonnet-4-6',
+    display_name: 'Sonnet 4.6',
+    description: 'Balanced model',
+    supports_effort: false,
+  };
+  const ev: SupportedModelsEvent = {
+    type: 'supported_models',
+    request_id: 'r',
+    session_id: 's',
+    models: [model],
+  };
+  assert.equal(ev.models.length, 1);
+  assert.equal(ev.models[0].value, 'claude-sonnet-4-6');
+  assert.equal(ev.models[0].supports_effort, false);
+});
+
+test('ModelInfo optional effort levels are typed as the documented union', () => {
+  const m: ModelInfo = {
+    value: 'opus',
+    display_name: 'Opus',
+    description: 'Most capable',
+    supports_effort: true,
+    supported_effort_levels: ['low', 'medium', 'high', 'xhigh', 'max'],
+  };
+  assert.deepEqual(m.supported_effort_levels, ['low', 'medium', 'high', 'xhigh', 'max']);
 });
