@@ -232,6 +232,29 @@ export interface GetContextUsageCommand {
   session_id: string;
 }
 
+/**
+ * Phone asks the daemon to enumerate the slash commands the SDK Query knows
+ * about (built-in + plugin + project-local). Reply is a `supported_commands`
+ * event keyed on `request_id`.
+ * Observer-mode sessions reply with `error { code: 'not_supported' }`.
+ */
+export interface GetSupportedCommandsCommand {
+  type: 'get_supported_commands';
+  request_id: string;
+  session_id: string;
+}
+
+/**
+ * Phone asks the daemon to enumerate the subagents the SDK Query can spawn
+ * for this session. Reply is a `supported_agents` event keyed on `request_id`.
+ * Observer-mode sessions reply with `error { code: 'not_supported' }`.
+ */
+export interface GetSupportedAgentsCommand {
+  type: 'get_supported_agents';
+  request_id: string;
+  session_id: string;
+}
+
 export interface ListSessionsCommand {
   type: 'list_sessions';
   request_id: string;
@@ -356,6 +379,8 @@ export type PhoneCommand =
   | SetModelCommand
   | GetSupportedModelsCommand
   | GetContextUsageCommand
+  | GetSupportedCommandsCommand
+  | GetSupportedAgentsCommand
   | ListSessionsCommand
   | ReadFileCommand
   | EmergencyAbortCommand
@@ -643,6 +668,45 @@ export interface ContextUsageEvent {
   usage: ContextUsageInfo;
 }
 
+/**
+ * Mirrors the SDK's SlashCommand. `argument_hint` may be empty.
+ */
+export interface SlashCommandInfo {
+  name: string;
+  description: string;
+  argument_hint: string;
+  aliases?: string[];
+}
+
+/**
+ * Daemon's reply to `get_supported_commands`.
+ */
+export interface SupportedCommandsEvent {
+  type: 'supported_commands';
+  request_id: string;
+  session_id: string;
+  commands: SlashCommandInfo[];
+}
+
+/**
+ * Mirrors the SDK's AgentInfo.
+ */
+export interface AgentInfoLite {
+  name: string;
+  description: string;
+  model?: string;
+}
+
+/**
+ * Daemon's reply to `get_supported_agents`.
+ */
+export interface SupportedAgentsEvent {
+  type: 'supported_agents';
+  request_id: string;
+  session_id: string;
+  agents: AgentInfoLite[];
+}
+
 export type PcEvent =
   | SessionStartedEvent
   | SessionOutputEvent
@@ -660,7 +724,9 @@ export type PcEvent =
   | CommandAckEvent
   | SessionPermissionModeChangedEvent
   | SupportedModelsEvent
-  | ContextUsageEvent;
+  | ContextUsageEvent
+  | SupportedCommandsEvent
+  | SupportedAgentsEvent;
 
 // ============================================================================
 // Peer Hello (E2E, peer-to-peer)
