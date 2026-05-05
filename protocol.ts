@@ -118,6 +118,12 @@ export interface NewSessionCommand {
     model?: string;
     system_prompt?: string;
     allowed_tools?: string[];
+    /**
+     * Launch the SDK Query with `allowDangerouslySkipPermissions: true` so the
+     * session can later switch into `bypassPermissions` mode. Must be opted-in
+     * at session-create time — the SDK does not allow flipping this at runtime.
+     */
+    dangerously_skip_permissions?: boolean;
   };
 }
 
@@ -172,9 +178,12 @@ export interface InterruptSessionCommand {
  * - `default` — prompt for every tool that needs approval.
  * - `acceptEdits` — auto-approve file edits, still prompt for higher-risk tools.
  * - `plan` — planning mode: Claude proposes edits without executing them.
- * - `bypassPermissions` — no prompts at all (caller is fully trusted).
+ * - `bypassPermissions` — no prompts at all (caller is fully trusted). Requires
+ *   the Query to have been launched with `allowDangerouslySkipPermissions: true`.
+ * - `dontAsk` — never prompt; deny anything not pre-approved.
+ * - `auto` — model classifier auto-approves/denies prompts.
  */
-export type PermissionMode = 'default' | 'acceptEdits' | 'plan' | 'bypassPermissions';
+export type PermissionMode = 'default' | 'acceptEdits' | 'plan' | 'bypassPermissions' | 'dontAsk' | 'auto';
 
 /**
  * Phone asks the daemon to switch the SDK Query's active permission mode.
@@ -347,6 +356,12 @@ export interface SessionStartedEvent {
   agent_display_name?: string;
   agent_version?: string;
   capabilities?: string[];
+  /** See SessionInfo.is_observed. */
+  is_observed?: boolean;
+  /** See SessionInfo.permission_mode. */
+  permission_mode?: PermissionMode;
+  /** See SessionInfo.dangerously_skip_permissions. */
+  dangerously_skip_permissions?: boolean;
 }
 
 export interface SessionOutputEvent {
@@ -435,6 +450,26 @@ export interface SessionInfo {
   summary?: string;
   entrypoint?: string;
   pid?: number;
+  /**
+   * True when the daemon is observing a terminal-owned Claude session
+   * (JSONL tail + HTTP hooks). False/undefined when the daemon owns the
+   * session via SDK Query (controller mode). Phone uses this to gate
+   * controller-only UI like the permission-mode picker.
+   */
+  is_observed?: boolean;
+  /**
+   * Current SDK permission mode for controller-mode sessions. Updated by
+   * the daemon after a successful set_permission_mode command (or on
+   * session creation). Always undefined for observed sessions.
+   */
+  permission_mode?: PermissionMode;
+  /**
+   * True when this controller-mode session was launched with
+   * `allowDangerouslySkipPermissions: true`, meaning it's eligible to switch
+   * into `bypassPermissions` mode at runtime. Always undefined / false for
+   * observed sessions and for controller sessions that opted out.
+   */
+  dangerously_skip_permissions?: boolean;
 }
 
 export interface FileContentEvent {
@@ -517,6 +552,17 @@ export interface CommandAckEvent {
   command: 'set_permission_mode' | 'set_model';
 }
 
+/**
+ * Pushed by daemon when a controller-mode session's permission mode changes
+ * (typically right after a successful set_permission_mode command). Phone uses
+ * this to update the picker selection in the chat toolbar.
+ */
+export interface SessionPermissionModeChangedEvent {
+  type: 'session_permission_mode_changed';
+  session_id: string;
+  mode: PermissionMode;
+}
+
 export type PcEvent =
   | SessionStartedEvent
   | SessionOutputEvent
@@ -531,7 +577,8 @@ export type PcEvent =
   | MessageAckEvent
   | HistoryDivergenceEvent
   | SyncCompleteEvent
-  | CommandAckEvent;
+  | CommandAckEvent
+  | SessionPermissionModeChangedEvent;
 
 // ============================================================================
 // Peer Hello (E2E, peer-to-peer)
