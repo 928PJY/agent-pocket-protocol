@@ -110,11 +110,14 @@ export interface NewSessionCommand {
   type: 'new_session';
   request_id: string;
   config: {
+    /// Human-readable session name shown on the phone session list.
+    name: string;
+    /// Which agent backend to drive. Currently 'claude_code' or 'codex'.
+    agent_type: Extract<AgentType, 'claude_code' | 'codex'>;
     working_directory?: string;
     model?: string;
     system_prompt?: string;
     allowed_tools?: string[];
-    initial_message?: string;
   };
 }
 
