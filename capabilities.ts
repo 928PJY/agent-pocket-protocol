@@ -62,6 +62,14 @@ export const PEER_CAPABILITIES = {
    * picker UI on this capability.
    */
   SESSION_CONTROL: 'session.control',
+
+  /**
+   * Daemon enabled `enableFileCheckpointing` on its SDK Query and accepts
+   * `rewind_files { user_message_id, dry_run? }`, replying with a
+   * `rewind_files_response` event. Phone must hide the rewind affordance
+   * when this is absent — old daemons log "Unknown command type".
+   */
+  FILES_REWIND: 'files.rewind',
 } as const;
 
 export type PeerCapability = typeof PEER_CAPABILITIES[keyof typeof PEER_CAPABILITIES];
@@ -81,4 +89,5 @@ export const CURRENT_PEER_CAPABILITIES: PeerCapability[] = [
   PEER_CAPABILITIES.SYNC_BOUNDARY,
   PEER_CAPABILITIES.NOTIFICATION_DELIVERY_ACKS,
   PEER_CAPABILITIES.SESSION_CONTROL,
+  PEER_CAPABILITIES.FILES_REWIND,
 ];

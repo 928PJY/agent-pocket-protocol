@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import { CURRENT_PEER_CAPABILITIES, PEER_CAPABILITIES } from '../capabilities.js';
 import { WIRE_VERSION_CURRENT, WIRE_VERSION_MIN } from '../constants.js';
 import { CURRENT_RELAY_FEATURES, RELAY_FEATURES } from '../features.js';
-import type { AgentInfoLite, CommandAckEvent, ContextUsageEvent, ContextUsageInfo, GetContextUsageCommand, GetMcpServerStatusCommand, GetSupportedAgentsCommand, GetSupportedCommandsCommand, GetSupportedModelsCommand, McpServerInfo, McpServerStatusEvent, ModelCatalog, ModelCatalogEntry, ModelInfo, NewSessionCommand, NotificationDeliveryAckCommand, PermissionMode, SessionInfo, SessionPermissionModeChangedEvent, SessionStartedEvent, SetModelCommand, SetPermissionModeCommand, SlashCommandInfo, SupportedAgentsEvent, SupportedCommandsEvent, SupportedModelsEvent } from '../protocol.js';
+import type { AgentInfoLite, CommandAckEvent, ContextUsageEvent, ContextUsageInfo, GetContextUsageCommand, GetMcpServerStatusCommand, GetSupportedAgentsCommand, GetSupportedCommandsCommand, GetSupportedModelsCommand, McpServerInfo, McpServerStatusEvent, ModelCatalog, ModelCatalogEntry, ModelInfo, NewSessionCommand, NotificationDeliveryAckCommand, PermissionMode, RewindFilesCommand, RewindFilesResponseEvent, SessionInfo, SessionPermissionModeChangedEvent, SessionStartedEvent, SetModelCommand, SetPermissionModeCommand, SlashCommandInfo, SupportedAgentsEvent, SupportedCommandsEvent, SupportedModelsEvent } from '../protocol.js';
 import { RISK_CLASSIFICATION, RiskLevel } from '../protocol.js';
 
 function assertUniqueSubset<T>(current: readonly T[], all: Record<string, T>): void {
@@ -329,4 +329,50 @@ test('McpServerInfo error/scope/tools/server_version are optional', () => {
 test('McpServerInfo failed status carries error string', () => {
   const failed: McpServerInfo = { name: 'm', status: 'failed', error: 'connection refused' };
   assert.equal(failed.error, 'connection refused');
+});
+
+test('rewind_files command carries dry_run + user_message_id', () => {
+  const preview: RewindFilesCommand = {
+    type: 'rewind_files',
+    request_id: 'r',
+    session_id: 's',
+    user_message_id: 'msg-1',
+    dry_run: true,
+  };
+  const apply: RewindFilesCommand = {
+    type: 'rewind_files',
+    request_id: 'r',
+    session_id: 's',
+    user_message_id: 'msg-1',
+  };
+  assert.equal(preview.dry_run, true);
+  assert.equal(apply.dry_run, undefined);
+});
+
+test('rewind_files_response mirrors SDK RewindFilesResult shape', () => {
+  const ok: RewindFilesResponseEvent = {
+    type: 'rewind_files_response',
+    request_id: 'r',
+    session_id: 's',
+    can_rewind: true,
+    dry_run: true,
+    files_changed: ['a.ts', 'b.ts'],
+    insertions: 12,
+    deletions: 5,
+  };
+  const denied: RewindFilesResponseEvent = {
+    type: 'rewind_files_response',
+    request_id: 'r',
+    session_id: 's',
+    can_rewind: false,
+    dry_run: false,
+    error: 'file checkpointing disabled',
+  };
+  assert.equal(ok.files_changed?.length, 2);
+  assert.equal(ok.insertions, 12);
+  assert.equal(denied.error, 'file checkpointing disabled');
+});
+
+test('FILES_REWIND capability is announced', () => {
+  assert.ok(CURRENT_PEER_CAPABILITIES.includes(PEER_CAPABILITIES.FILES_REWIND));
 });

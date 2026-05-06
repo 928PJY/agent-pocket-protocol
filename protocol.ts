@@ -266,6 +266,29 @@ export interface GetMcpServerStatusCommand {
   session_id: string;
 }
 
+/**
+ * Phone asks the daemon to rewind tracked file changes back to the on-disk
+ * state captured at the named user message. Requires the daemon to have
+ * created the SDK Query with `enableFileCheckpointing: true` (controller
+ * mode only — observer-mode sessions reply with `error { code: 'not_supported' }`).
+ *
+ * `dry_run: true` returns the change preview (`files_changed`, `insertions`,
+ * `deletions`) without touching disk. The phone uses dry-run first, shows
+ * the user what will change, and only sends a second command with `dry_run`
+ * absent/false on explicit confirmation.
+ *
+ * Reply is a `rewind_files_response` event keyed on `request_id`.
+ */
+export interface RewindFilesCommand {
+  type: 'rewind_files';
+  request_id: string;
+  session_id: string;
+  /** UUID of the user message in the SDK transcript to rewind back to. */
+  user_message_id: string;
+  /** When true, preview only — no files are modified. Default false. */
+  dry_run?: boolean;
+}
+
 export interface ListSessionsCommand {
   type: 'list_sessions';
   request_id: string;
@@ -393,6 +416,7 @@ export type PhoneCommand =
   | GetSupportedCommandsCommand
   | GetSupportedAgentsCommand
   | GetMcpServerStatusCommand
+  | RewindFilesCommand
   | ListSessionsCommand
   | ReadFileCommand
   | EmergencyAbortCommand
@@ -802,6 +826,25 @@ export interface McpServerStatusEvent {
   servers: McpServerInfo[];
 }
 
+/**
+ * Daemon's reply to `rewind_files`. Mirrors the SDK's `RewindFilesResult`
+ * shape. `dry_run` echoes the request flag so the phone can route the
+ * response between the preview sheet and the final apply path. When
+ * `can_rewind` is false, `error` carries the SDK's reason (e.g. file
+ * checkpointing not enabled, unknown user message id).
+ */
+export interface RewindFilesResponseEvent {
+  type: 'rewind_files_response';
+  request_id: string;
+  session_id: string;
+  can_rewind: boolean;
+  dry_run: boolean;
+  error?: string;
+  files_changed?: string[];
+  insertions?: number;
+  deletions?: number;
+}
+
 export type PcEvent =
   | SessionStartedEvent
   | SessionOutputEvent
@@ -822,7 +865,8 @@ export type PcEvent =
   | ContextUsageEvent
   | SupportedCommandsEvent
   | SupportedAgentsEvent
-  | McpServerStatusEvent;
+  | McpServerStatusEvent
+  | RewindFilesResponseEvent;
 
 // ============================================================================
 // Peer Hello (E2E, peer-to-peer)
