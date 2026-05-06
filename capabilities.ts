@@ -65,11 +65,14 @@ export const PEER_CAPABILITIES = {
 
   /**
    * Daemon enabled `enableFileCheckpointing` on its SDK Query and accepts
-   * `rewind_files { user_message_id, dry_run? }`, replying with a
-   * `rewind_files_response` event. Phone must hide the rewind affordance
-   * when this is absent — old daemons log "Unknown command type".
+   * `rewind_session { user_message_id, dry_run? }`, replying with a
+   * `rewind_session_response` event. On non-dry-run apply the daemon
+   * forks the SDK session (transcript truncated inclusive of the target
+   * message) and the response carries the new `session_id` to navigate
+   * to. Phone must hide the rewind affordance when this cap is absent —
+   * old daemons would log "Unknown command type".
    */
-  FILES_REWIND: 'files.rewind',
+  SESSION_REWIND: 'session.rewind',
 } as const;
 
 export type PeerCapability = typeof PEER_CAPABILITIES[keyof typeof PEER_CAPABILITIES];
@@ -89,5 +92,5 @@ export const CURRENT_PEER_CAPABILITIES: PeerCapability[] = [
   PEER_CAPABILITIES.SYNC_BOUNDARY,
   PEER_CAPABILITIES.NOTIFICATION_DELIVERY_ACKS,
   PEER_CAPABILITIES.SESSION_CONTROL,
-  PEER_CAPABILITIES.FILES_REWIND,
+  PEER_CAPABILITIES.SESSION_REWIND,
 ];
