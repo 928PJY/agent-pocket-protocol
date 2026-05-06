@@ -255,6 +255,17 @@ export interface GetSupportedAgentsCommand {
   session_id: string;
 }
 
+/**
+ * Phone asks the daemon for the SDK Query's MCP server connection status
+ * for this session. Reply is an `mcp_server_status` event keyed on
+ * `request_id`. Observer-mode sessions reply with `error { code: 'not_supported' }`.
+ */
+export interface GetMcpServerStatusCommand {
+  type: 'get_mcp_server_status';
+  request_id: string;
+  session_id: string;
+}
+
 export interface ListSessionsCommand {
   type: 'list_sessions';
   request_id: string;
@@ -381,6 +392,7 @@ export type PhoneCommand =
   | GetContextUsageCommand
   | GetSupportedCommandsCommand
   | GetSupportedAgentsCommand
+  | GetMcpServerStatusCommand
   | ListSessionsCommand
   | ReadFileCommand
   | EmergencyAbortCommand
@@ -629,6 +641,43 @@ export interface ModelInfo {
 }
 
 /**
+ * Effort tier appended as a suffix to the API model id (e.g. `claude-opus-4-7-high`).
+ * `none` means no suffix. Determined by the daemon's static catalog rather than the
+ * SDK's `supportedModels()` (which omits older versions and effort variants entirely).
+ */
+export type ModelEffort = 'none' | 'low' | 'medium' | 'high' | 'xhigh' | 'max';
+
+/**
+ * One row in the daemon-curated model catalog. iOS renders three pickers (family,
+ * version, effort) plus a 1M-context toggle, then composes the resulting model id
+ * as `claude-{family}-{version}[-{effort}][1m]` and sends it via `set_model`.
+ *
+ * Why a static catalog instead of `Query.supportedModels()`: the SDK only lists
+ * 4 alias entries (`default`/`opus`/`sonnet`/`haiku`) plus whichever specific
+ * build the session was launched with, so older versions like Sonnet 4.5 and
+ * effort tiers like `-xhigh` are unreachable through the picker. The SDK
+ * itself accepts any well-formed id (verified by probing all 72 combinations
+ * of family×version×effort×1m on SDK 0.2.129), so we own the catalog.
+ */
+export interface ModelCatalogEntry {
+  family: 'sonnet' | 'opus' | 'haiku';
+  /** API id fragment between family and any suffix, e.g. `4-7` for opus 4.7. */
+  version: string;
+  /** Human-readable name for the version, e.g. "4.7" or "4.6". */
+  version_label: string;
+  /** Whether the family/version supports the `[1m]` 1M-context suffix. */
+  supports_one_m: boolean;
+  /** Effort tiers acceptable for this version. `none` is implicit. */
+  effort_levels: Array<Exclude<ModelEffort, 'none'>>;
+  /** SDK reports this in `supportsFastMode`. Phone shows it as a hint only. */
+  supports_fast_mode?: boolean;
+}
+
+export interface ModelCatalog {
+  entries: ModelCatalogEntry[];
+}
+
+/**
  * Daemon's reply to `get_supported_models`. `request_id` echoes the command's
  * id so the phone can correlate the response.
  */
@@ -637,6 +686,22 @@ export interface SupportedModelsEvent {
   request_id: string;
   session_id: string;
   models: ModelInfo[];
+  /**
+   * The currently selected model for this session, sourced from
+   * `Query.getContextUsage().model`. May be a member of `models[].value`
+   * (when the user has pinned a specific build) or a resolved full ID
+   * for an alias (e.g. `claude-sonnet-4-5` when the user picked `sonnet`).
+   * Phones should treat this as authoritative for showing the selection
+   * checkmark, falling back to family-prefix matching when the string is
+   * not a literal member of `models[].value`.
+   */
+  current_model?: string;
+  /**
+   * Daemon-curated catalog used by phones that render structured pickers
+   * (family / version / effort / 1m). Optional so old phones still work
+   * off the legacy `models` array. New phones should prefer this when present.
+   */
+  model_catalog?: ModelCatalog;
 }
 
 /**
@@ -707,6 +772,36 @@ export interface SupportedAgentsEvent {
   agents: AgentInfoLite[];
 }
 
+/**
+ * Mirrors the SDK's McpServerStatus, slimmed down to fields the phone UI
+ * actually uses. Snake_case wire fields match the rest of the protocol.
+ */
+export type McpServerConnectionStatus = 'connected' | 'failed' | 'needs-auth' | 'pending' | 'disabled';
+
+export interface McpServerToolInfo {
+  name: string;
+  description?: string;
+}
+
+export interface McpServerInfo {
+  name: string;
+  status: McpServerConnectionStatus;
+  scope?: string;
+  error?: string;
+  server_version?: string;
+  tools?: McpServerToolInfo[];
+}
+
+/**
+ * Daemon's reply to `get_mcp_server_status`.
+ */
+export interface McpServerStatusEvent {
+  type: 'mcp_server_status';
+  request_id: string;
+  session_id: string;
+  servers: McpServerInfo[];
+}
+
 export type PcEvent =
   | SessionStartedEvent
   | SessionOutputEvent
@@ -726,7 +821,8 @@ export type PcEvent =
   | SupportedModelsEvent
   | ContextUsageEvent
   | SupportedCommandsEvent
-  | SupportedAgentsEvent;
+  | SupportedAgentsEvent
+  | McpServerStatusEvent;
 
 // ============================================================================
 // Peer Hello (E2E, peer-to-peer)

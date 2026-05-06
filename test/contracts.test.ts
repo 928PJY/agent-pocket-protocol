@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import { CURRENT_PEER_CAPABILITIES, PEER_CAPABILITIES } from '../capabilities.js';
 import { WIRE_VERSION_CURRENT, WIRE_VERSION_MIN } from '../constants.js';
 import { CURRENT_RELAY_FEATURES, RELAY_FEATURES } from '../features.js';
-import type { AgentInfoLite, CommandAckEvent, ContextUsageEvent, ContextUsageInfo, GetContextUsageCommand, GetSupportedAgentsCommand, GetSupportedCommandsCommand, GetSupportedModelsCommand, ModelInfo, NewSessionCommand, NotificationDeliveryAckCommand, PermissionMode, SessionInfo, SessionPermissionModeChangedEvent, SessionStartedEvent, SetModelCommand, SetPermissionModeCommand, SlashCommandInfo, SupportedAgentsEvent, SupportedCommandsEvent, SupportedModelsEvent } from '../protocol.js';
+import type { AgentInfoLite, CommandAckEvent, ContextUsageEvent, ContextUsageInfo, GetContextUsageCommand, GetMcpServerStatusCommand, GetSupportedAgentsCommand, GetSupportedCommandsCommand, GetSupportedModelsCommand, McpServerInfo, McpServerStatusEvent, ModelCatalog, ModelCatalogEntry, ModelInfo, NewSessionCommand, NotificationDeliveryAckCommand, PermissionMode, SessionInfo, SessionPermissionModeChangedEvent, SessionStartedEvent, SetModelCommand, SetPermissionModeCommand, SlashCommandInfo, SupportedAgentsEvent, SupportedCommandsEvent, SupportedModelsEvent } from '../protocol.js';
 import { RISK_CLASSIFICATION, RiskLevel } from '../protocol.js';
 
 function assertUniqueSubset<T>(current: readonly T[], all: Record<string, T>): void {
@@ -172,6 +172,30 @@ test('ModelInfo optional effort levels are typed as the documented union', () =>
   assert.deepEqual(m.supported_effort_levels, ['low', 'medium', 'high', 'xhigh', 'max']);
 });
 
+test('supported_models event carries optional model_catalog and current_model', () => {
+  const entry: ModelCatalogEntry = {
+    family: 'opus',
+    version: '4-7',
+    version_label: '4.7',
+    supports_one_m: true,
+    effort_levels: ['low', 'medium', 'high', 'xhigh', 'max'],
+  };
+  const catalog: ModelCatalog = { entries: [entry] };
+  const ev: SupportedModelsEvent = {
+    type: 'supported_models',
+    request_id: 'r',
+    session_id: 's',
+    models: [],
+    current_model: 'claude-opus-4-7-xhigh[1m]',
+    model_catalog: catalog,
+  };
+  assert.equal(ev.current_model, 'claude-opus-4-7-xhigh[1m]');
+  assert.equal(ev.model_catalog?.entries.length, 1);
+  assert.equal(ev.model_catalog?.entries[0].family, 'opus');
+  assert.equal(ev.model_catalog?.entries[0].supports_one_m, true);
+  assert.deepEqual(ev.model_catalog?.entries[0].effort_levels, ['low', 'medium', 'high', 'xhigh', 'max']);
+});
+
 test('get_context_usage command echoes session_id', () => {
   const cmd: GetContextUsageCommand = { type: 'get_context_usage', request_id: 'r', session_id: 's' };
   assert.equal(cmd.type, 'get_context_usage');
@@ -264,4 +288,45 @@ test('supported_agents event carries the SDK AgentInfo list', () => {
 test('AgentInfoLite model is optional', () => {
   const a: AgentInfoLite = { name: 'Plan', description: 'Plan it' };
   assert.equal(a.model, undefined);
+});
+
+test('get_mcp_server_status command echoes session_id', () => {
+  const cmd: GetMcpServerStatusCommand = { type: 'get_mcp_server_status', request_id: 'r', session_id: 's' };
+  assert.equal(cmd.type, 'get_mcp_server_status');
+  assert.equal(cmd.session_id, 's');
+});
+
+test('mcp_server_status event carries server connection state', () => {
+  const server: McpServerInfo = {
+    name: 'github',
+    status: 'connected',
+    scope: 'user',
+    server_version: '1.2.3',
+    tools: [
+      { name: 'create_issue', description: 'File a new issue' },
+      { name: 'list_prs' },
+    ],
+  };
+  const ev: McpServerStatusEvent = {
+    type: 'mcp_server_status',
+    request_id: 'r',
+    session_id: 's',
+    servers: [server],
+  };
+  assert.equal(ev.servers[0]!.name, 'github');
+  assert.equal(ev.servers[0]!.status, 'connected');
+  assert.equal(ev.servers[0]!.tools?.length, 2);
+});
+
+test('McpServerInfo error/scope/tools/server_version are optional', () => {
+  const minimal: McpServerInfo = { name: 'm', status: 'pending' };
+  assert.equal(minimal.error, undefined);
+  assert.equal(minimal.scope, undefined);
+  assert.equal(minimal.tools, undefined);
+  assert.equal(minimal.server_version, undefined);
+});
+
+test('McpServerInfo failed status carries error string', () => {
+  const failed: McpServerInfo = { name: 'm', status: 'failed', error: 'connection refused' };
+  assert.equal(failed.error, 'connection refused');
 });
