@@ -604,6 +604,16 @@ export interface MessageAckEvent {
   error?: string;
   /** Daemon timestamp (epoch ms). */
   ts: number;
+  /**
+   * SDK transcript UUID assigned by Claude Code once the message lands in the
+   * JSONL transcript. Sent in a follow-up `committed` ack from controller-mode
+   * sessions where the daemon couldn't have known the uuid at first ack time.
+   * Phone uses this to enable per-message rewind on bubbles it sent locally.
+   * Omitted on the initial `received`/`committed` ack and on observed-mode
+   * sessions (those echo through session_output user_message which already
+   * carries sdkUuid).
+   */
+  sdk_uuid?: string;
 }
 
 /**
