@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import { CURRENT_PEER_CAPABILITIES, PEER_CAPABILITIES } from '../capabilities.js';
 import { WIRE_VERSION_CURRENT, WIRE_VERSION_MIN } from '../constants.js';
 import { CURRENT_RELAY_FEATURES, RELAY_FEATURES } from '../features.js';
-import type { AgentInfoLite, CommandAckEvent, ContextUsageEvent, ContextUsageInfo, GetContextUsageCommand, GetMcpServerStatusCommand, GetSupportedAgentsCommand, GetSupportedCommandsCommand, GetSupportedModelsCommand, McpServerInfo, McpServerStatusEvent, ModelCatalog, ModelCatalogEntry, ModelInfo, NewSessionCommand, NotificationDeliveryAckCommand, PermissionMode, SessionInfo, SessionPermissionModeChangedEvent, SessionStartedEvent, SetModelCommand, SetPermissionModeCommand, SlashCommandInfo, SupportedAgentsEvent, SupportedCommandsEvent, SupportedModelsEvent } from '../protocol.js';
+import type { AgentInfoLite, CommandAckEvent, ContextUsageEvent, ContextUsageInfo, GetContextUsageCommand, GetMcpServerStatusCommand, GetSupportedAgentsCommand, GetSupportedCommandsCommand, GetSupportedModelsCommand, McpServerInfo, McpServerStatusEvent, ModelCatalog, ModelCatalogEntry, ModelInfo, NewSessionCommand, NotificationDeliveryAckCommand, PermissionMode, RewindSessionCommand, RewindSessionResponseEvent, SessionInfo, SessionPermissionModeChangedEvent, SessionStartedEvent, SetModelCommand, SetPermissionModeCommand, SlashCommandInfo, SupportedAgentsEvent, SupportedCommandsEvent, SupportedModelsEvent } from '../protocol.js';
 import { RISK_CLASSIFICATION, RiskLevel } from '../protocol.js';
 
 function assertUniqueSubset<T>(current: readonly T[], all: Record<string, T>): void {
@@ -329,4 +329,61 @@ test('McpServerInfo error/scope/tools/server_version are optional', () => {
 test('McpServerInfo failed status carries error string', () => {
   const failed: McpServerInfo = { name: 'm', status: 'failed', error: 'connection refused' };
   assert.equal(failed.error, 'connection refused');
+});
+
+test('rewind_session command carries dry_run + user_message_id', () => {
+  const preview: RewindSessionCommand = {
+    type: 'rewind_session',
+    request_id: 'r',
+    session_id: 's',
+    user_message_id: 'msg-1',
+    dry_run: true,
+  };
+  const apply: RewindSessionCommand = {
+    type: 'rewind_session',
+    request_id: 'r',
+    session_id: 's',
+    user_message_id: 'msg-1',
+  };
+  assert.equal(preview.dry_run, true);
+  assert.equal(apply.dry_run, undefined);
+});
+
+test('rewind_session_response carries fork id on apply, omits it on dry-run', () => {
+  const dryRunOk: RewindSessionResponseEvent = {
+    type: 'rewind_session_response',
+    request_id: 'r',
+    session_id: 's',
+    can_rewind: true,
+    dry_run: true,
+    files_changed: ['a.ts', 'b.ts'],
+    insertions: 12,
+    deletions: 5,
+  };
+  const applyOk: RewindSessionResponseEvent = {
+    type: 'rewind_session_response',
+    request_id: 'r',
+    session_id: 's',
+    can_rewind: true,
+    dry_run: false,
+    files_changed: ['a.ts'],
+    insertions: 1,
+    deletions: 0,
+    new_session_id: 's-fork',
+  };
+  const denied: RewindSessionResponseEvent = {
+    type: 'rewind_session_response',
+    request_id: 'r',
+    session_id: 's',
+    can_rewind: false,
+    dry_run: false,
+    error: 'file checkpointing disabled',
+  };
+  assert.equal(dryRunOk.new_session_id, undefined);
+  assert.equal(applyOk.new_session_id, 's-fork');
+  assert.equal(denied.error, 'file checkpointing disabled');
+});
+
+test('SESSION_REWIND capability is announced', () => {
+  assert.ok(CURRENT_PEER_CAPABILITIES.includes(PEER_CAPABILITIES.SESSION_REWIND));
 });

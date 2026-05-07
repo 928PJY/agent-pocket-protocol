@@ -73,6 +73,11 @@ export interface PermissionRequestFromClaude {
 export interface UserMessageEvent {
   type: 'user_message';
   message: string;
+  /// SDK transcript UUID (top-level `uuid` from the JSONL row). Required by
+  /// the phone to call `rewind_session { user_message_id }`. Omitted when the
+  /// row has no uuid (older transcripts) or when the message did not originate
+  /// from an SDK transcript row (e.g. queue-operation enqueues).
+  sdkUuid?: string;
 }
 
 export interface SystemMessageEvent {
@@ -266,6 +271,36 @@ export interface GetMcpServerStatusCommand {
   session_id: string;
 }
 
+/**
+ * Phone asks the daemon to rewind tracked file changes back to the on-disk
+ * state captured at the named user message. Requires the daemon to have
+ * created the SDK Query with `enableFileCheckpointing: true` (controller
+ * mode only — observer-mode sessions reply with `error { code: 'not_supported' }`).
+ *
+ * `dry_run: true` returns the change preview (`files_changed`, `insertions`,
+ * `deletions`) without touching disk OR forking the session. The phone uses
+ * dry-run first, shows the user what will change, and only sends a second
+ * command with `dry_run` absent/false on explicit confirmation.
+ *
+ * On a non-dry-run apply the daemon (a) calls SDK `rewindFiles` to restore
+ * disk state, (b) calls SDK `forkSession({ upToMessageId })` to slice the
+ * transcript inclusive of the target user message, (c) ends the original
+ * session and resumes the fork as the new live session. The reply carries
+ * the new session id in `new_session_id` and the phone is expected to
+ * navigate from `session_id` to `new_session_id`.
+ *
+ * Reply is a `rewind_session_response` event keyed on `request_id`.
+ */
+export interface RewindSessionCommand {
+  type: 'rewind_session';
+  request_id: string;
+  session_id: string;
+  /** UUID of the user message in the SDK transcript to rewind back to. */
+  user_message_id: string;
+  /** When true, preview only — no files are modified, no fork happens. Default false. */
+  dry_run?: boolean;
+}
+
 export interface ListSessionsCommand {
   type: 'list_sessions';
   request_id: string;
@@ -393,6 +428,7 @@ export type PhoneCommand =
   | GetSupportedCommandsCommand
   | GetSupportedAgentsCommand
   | GetMcpServerStatusCommand
+  | RewindSessionCommand
   | ListSessionsCommand
   | ReadFileCommand
   | EmergencyAbortCommand
@@ -802,6 +838,34 @@ export interface McpServerStatusEvent {
   servers: McpServerInfo[];
 }
 
+/**
+ * Daemon's reply to `rewind_session`. `dry_run` echoes the request flag so
+ * the phone can route between the preview sheet and the final apply path.
+ *
+ * On a successful apply (`dry_run=false`, `can_rewind=true`), `new_session_id`
+ * is the fork's session id and the phone must navigate the user from
+ * `session_id` to `new_session_id`. The original `session_id` is ended.
+ *
+ * On dry-run the file change stats (`files_changed`, `insertions`,
+ * `deletions`) reflect what `rewindFiles` *would* do; `new_session_id` is
+ * absent because no fork happens. When `can_rewind` is false, `error`
+ * carries the SDK's reason (e.g. file checkpointing not enabled, unknown
+ * user message id, observed-mode session).
+ */
+export interface RewindSessionResponseEvent {
+  type: 'rewind_session_response';
+  request_id: string;
+  session_id: string;
+  can_rewind: boolean;
+  dry_run: boolean;
+  error?: string;
+  files_changed?: string[];
+  insertions?: number;
+  deletions?: number;
+  /** New (forked) session id, set only when dry_run=false and can_rewind=true. */
+  new_session_id?: string;
+}
+
 export type PcEvent =
   | SessionStartedEvent
   | SessionOutputEvent
@@ -822,7 +886,8 @@ export type PcEvent =
   | ContextUsageEvent
   | SupportedCommandsEvent
   | SupportedAgentsEvent
-  | McpServerStatusEvent;
+  | McpServerStatusEvent
+  | RewindSessionResponseEvent;
 
 // ============================================================================
 // Peer Hello (E2E, peer-to-peer)
