@@ -11,6 +11,12 @@ constant while peers still announce it).
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-05-09
+
+### Added
+- `LocalCommandInvokeEvent`, `LocalCommandOutputEvent`, `CompactBoundaryEvent`, `CompactSummaryEvent` ClaudeEvent variants. Daemon parses `<command-name>` / `<local-command-stdout>` / `<local-command-stderr>` / `compact_boundary` / `isCompactSummary` JSONL entries into these structured events so the phone can render terminal-side `/cost`, `/recap`, `/compact`, etc. instead of dropping them.
+- `PEER_CAPABILITIES.LOCAL_COMMAND` (`local.command`), announced in `CURRENT_PEER_CAPABILITIES`. Daemon must continue to drop the underlying JSONL entries when the peer lacks this cap so old iOS builds don't receive payloads they can't render.
+
 ## [0.3.0] - 2026-05-01
 
 ### Added

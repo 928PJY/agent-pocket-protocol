@@ -387,3 +387,29 @@ test('rewind_session_response carries fork id on apply, omits it on dry-run', ()
 test('SESSION_REWIND capability is announced', () => {
   assert.ok(CURRENT_PEER_CAPABILITIES.includes(PEER_CAPABILITIES.SESSION_REWIND));
 });
+
+test('LOCAL_COMMAND capability is announced', () => {
+  assert.ok(CURRENT_PEER_CAPABILITIES.includes(PEER_CAPABILITIES.LOCAL_COMMAND));
+});
+
+test('local-command ClaudeEvent variants preserve their wire shape', async () => {
+  const protocol = await import('../protocol.js');
+  type LocalCommandInvokeEvent = import('../protocol.js').LocalCommandInvokeEvent;
+  type LocalCommandOutputEvent = import('../protocol.js').LocalCommandOutputEvent;
+  type CompactBoundaryEvent = import('../protocol.js').CompactBoundaryEvent;
+  type CompactSummaryEvent = import('../protocol.js').CompactSummaryEvent;
+  void protocol;
+
+  const invoke: LocalCommandInvokeEvent = { type: 'local_command_invoke', name: 'cost', args: '' };
+  const stdout: LocalCommandOutputEvent = { type: 'local_command_output', stdout: 'Total cost: $0.42' };
+  const stderr: LocalCommandOutputEvent = { type: 'local_command_output', stdout: 'oops', is_stderr: true };
+  const boundary: CompactBoundaryEvent = { type: 'compact_boundary' };
+  const summary: CompactSummaryEvent = { type: 'compact_summary', summary: '...long text...' };
+
+  assert.equal(invoke.name, 'cost');
+  assert.equal(invoke.args, '');
+  assert.equal(stdout.is_stderr, undefined);
+  assert.equal(stderr.is_stderr, true);
+  assert.equal(boundary.type, 'compact_boundary');
+  assert.ok(summary.summary.length > 0);
+});

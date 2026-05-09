@@ -97,6 +97,56 @@ export interface SubagentEvent {
   agent_status?: 'running' | 'idle' | 'done';
 }
 
+/**
+ * User invoked a CLI slash command in the terminal (e.g. `/cost`, `/recap`,
+ * `/compact`). Parsed from JSONL `<command-name>` entries. The matching
+ * `LocalCommandOutputEvent` (if any) follows in a later session_seq frame —
+ * the phone pairs them in its layout pass. Gated by
+ * PEER_CAPABILITIES.LOCAL_COMMAND.
+ */
+export interface LocalCommandInvokeEvent {
+  type: 'local_command_invoke';
+  /// Command name without the leading slash (e.g. "cost", "compact").
+  name: string;
+  /// Args text after the command name; empty string when the user typed
+  /// the command bare (e.g. `/cost` vs `/effort medium`).
+  args: string;
+}
+
+/**
+ * Stdout (or stderr) produced by a CLI slash command. Parsed from JSONL
+ * `<local-command-stdout>` / `<local-command-stderr>` entries. Pairs with
+ * the most recent preceding `LocalCommandInvokeEvent` from the same
+ * session. Gated by PEER_CAPABILITIES.LOCAL_COMMAND.
+ */
+export interface LocalCommandOutputEvent {
+  type: 'local_command_output';
+  /// Inner text of the tag, ANSI escapes preserved as-is — phone strips them.
+  stdout: string;
+  /// Set when sourced from `<local-command-stderr>` instead of stdout.
+  is_stderr?: boolean;
+}
+
+/**
+ * Boundary marker emitted right after `/compact` finishes condensing the
+ * conversation. Renders as a horizontal "Conversation compacted" divider
+ * in chat. Gated by PEER_CAPABILITIES.LOCAL_COMMAND.
+ */
+export interface CompactBoundaryEvent {
+  type: 'compact_boundary';
+}
+
+/**
+ * Auto-generated summary written to the new conversation context after
+ * `/compact`. Carries the full multi-KB summary text as a single payload
+ * so the phone can render it in a collapsed disclosure (default closed).
+ * Gated by PEER_CAPABILITIES.LOCAL_COMMAND.
+ */
+export interface CompactSummaryEvent {
+  type: 'compact_summary';
+  summary: string;
+}
+
 export type ClaudeEvent =
   | ThinkingEvent
   | AssistantMessageEvent
@@ -105,7 +155,11 @@ export type ClaudeEvent =
   | PermissionRequestFromClaude
   | UserMessageEvent
   | SystemMessageEvent
-  | SubagentEvent;
+  | SubagentEvent
+  | LocalCommandInvokeEvent
+  | LocalCommandOutputEvent
+  | CompactBoundaryEvent
+  | CompactSummaryEvent;
 
 // ============================================================================
 // Phone → PC Commands
