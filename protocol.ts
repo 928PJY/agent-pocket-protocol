@@ -111,6 +111,10 @@ export interface LocalCommandInvokeEvent {
   /// Args text after the command name; empty string when the user typed
   /// the command bare (e.g. `/cost` vs `/effort medium`).
   args: string;
+  /// Source JSONL entry timestamp (ISO 8601). Lets the phone use the same
+  /// timestamp for live and history-replayed instances of the same row, so
+  /// dedup across paths matches.
+  timestamp?: string;
 }
 
 /**
@@ -125,6 +129,8 @@ export interface LocalCommandOutputEvent {
   stdout: string;
   /// Set when sourced from `<local-command-stderr>` instead of stdout.
   is_stderr?: boolean;
+  /// Source JSONL entry timestamp (ISO 8601). See LocalCommandInvokeEvent.
+  timestamp?: string;
 }
 
 /**
@@ -134,6 +140,8 @@ export interface LocalCommandOutputEvent {
  */
 export interface CompactBoundaryEvent {
   type: 'compact_boundary';
+  /// Source JSONL entry timestamp (ISO 8601). See LocalCommandInvokeEvent.
+  timestamp?: string;
 }
 
 /**
@@ -145,6 +153,8 @@ export interface CompactBoundaryEvent {
 export interface CompactSummaryEvent {
   type: 'compact_summary';
   summary: string;
+  /// Source JSONL entry timestamp (ISO 8601). See LocalCommandInvokeEvent.
+  timestamp?: string;
 }
 
 export type ClaudeEvent =
