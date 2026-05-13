@@ -73,6 +73,35 @@ export const PEER_CAPABILITIES = {
    * old daemons would log "Unknown command type".
    */
   SESSION_REWIND: 'session.rewind',
+
+  /**
+   * Daemon parses observer-mode JSONL `<command-name>` /
+   * `<local-command-stdout>` / `<local-command-stderr>` entries plus
+   * `compact_boundary` system frames and `isCompactSummary` user frames
+   * into structured `local_command_invoke`, `local_command_output`,
+   * `compact_boundary`, and `compact_summary` ClaudeEvents.
+   *
+   * When the peer (phone) lacks this cap, the daemon must continue to
+   * silently drop these JSONL entries via `isInternalMessage` so old
+   * iOS builds don't receive payloads they can't render.
+   */
+  LOCAL_COMMAND: 'local.command',
+
+  /**
+   * Both sides agree on a stable per-row identifier:
+   *   - Daemon stamps `sdk_uuid` (and `sdk_block_index` for multi-block rows)
+   *     on every emitted ClaudeEvent — JSONL row uuid where available, a
+   *     deterministic sha1-derived id otherwise.
+   *   - Daemon switches assistant text + thinking from delta-emit to
+   *     full-text-emit (so each (sdk_uuid, sdk_block_index) row replaces
+   *     in place rather than appending chunks).
+   *   - Phone uses sdk_uuid as `ChatMessage.id` and drops fingerprint-
+   *     based dedup entirely.
+   *
+   * Cap is announced by both sides; the daemon gates the delta→full-text
+   * switch on the phone announcing it (old phones keep getting deltas).
+   */
+  STABLE_SDK_UUID: 'sdk.stable_uuid',
 } as const;
 
 export type PeerCapability = typeof PEER_CAPABILITIES[keyof typeof PEER_CAPABILITIES];
@@ -93,4 +122,6 @@ export const CURRENT_PEER_CAPABILITIES: PeerCapability[] = [
   PEER_CAPABILITIES.NOTIFICATION_DELIVERY_ACKS,
   PEER_CAPABILITIES.SESSION_CONTROL,
   PEER_CAPABILITIES.SESSION_REWIND,
+  PEER_CAPABILITIES.LOCAL_COMMAND,
+  PEER_CAPABILITIES.STABLE_SDK_UUID,
 ];

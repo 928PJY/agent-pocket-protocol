@@ -43,11 +43,23 @@ export enum PermissionDecision {
 export interface ThinkingEvent {
   type: 'thinking';
   thinking: string;
+  /// SDK transcript UUID (top-level `uuid` from the JSONL row). When the
+  /// daemon also announces PEER_CAPABILITIES.STABLE_SDK_UUID, `thinking`
+  /// carries the full block text (not a delta slice) and the phone keys
+  /// `ChatMessage.id` off (sdkUuid, sdkBlockIndex) so successive emits for
+  /// the same row replace in place.
+  sdkUuid?: string;
+  /// 0-based index of this block inside `message.content[]` for the row.
+  /// Disambiguates multiple thinking/text blocks that share one row uuid.
+  sdkBlockIndex?: number;
 }
 
 export interface AssistantMessageEvent {
   type: 'assistant_message';
   message: string;
+  /// See ThinkingEvent.sdkUuid — same semantics for assistant text blocks.
+  sdkUuid?: string;
+  sdkBlockIndex?: number;
 }
 
 export interface ToolUseEvent {
@@ -55,6 +67,12 @@ export interface ToolUseEvent {
   tool_id: string;
   tool_name: string;
   tool_input: Record<string, unknown>;
+  /// SDK transcript UUID for the row that contained this tool_use block.
+  /// Tool identity for dedup/permission/rewind still flows through
+  /// `tool_id`; sdkUuid is informational here.
+  sdkUuid?: string;
+  /// 0-based index inside the source row's `message.content[]`.
+  sdkBlockIndex?: number;
 }
 
 export interface ToolResultEvent {
@@ -62,6 +80,9 @@ export interface ToolResultEvent {
   tool_id: string;
   status: 'success' | 'error';
   output: string;
+  /// SDK transcript UUID. Tool result identity is still keyed off
+  /// `tool_id` end-to-end; sdkUuid is informational.
+  sdkUuid?: string;
 }
 
 export interface PermissionRequestFromClaude {
@@ -83,6 +104,10 @@ export interface UserMessageEvent {
 export interface SystemMessageEvent {
   type: 'system_message';
   message: string;
+  /// SDK transcript UUID where available. Synthesized system_messages
+  /// (e.g. interrupt notices that have no source JSONL row) get a
+  /// deterministic id from the daemon's stableEventId helper instead.
+  sdkUuid?: string;
 }
 
 export interface SubagentEvent {
@@ -95,6 +120,85 @@ export interface SubagentEvent {
   tool_use_count?: number;
   token_count?: number;
   agent_status?: 'running' | 'idle' | 'done';
+  /// SDK transcript UUID of the subagent JSONL row that produced this
+  /// outer event. Informational — phone groups by `agent_id` and keys
+  /// `ChatMessage.id` off `inner_event.sdkUuid`.
+  sdkUuid?: string;
+  /// Mirrors inner_event's block index when applicable.
+  sdkBlockIndex?: number;
+}
+
+/**
+ * User invoked a CLI slash command in the terminal (e.g. `/cost`, `/recap`,
+ * `/compact`). Parsed from JSONL `<command-name>` entries. The matching
+ * `LocalCommandOutputEvent` (if any) follows in a later session_seq frame —
+ * the phone pairs them in its layout pass. Gated by
+ * PEER_CAPABILITIES.LOCAL_COMMAND.
+ */
+export interface LocalCommandInvokeEvent {
+  type: 'local_command_invoke';
+  /// Command name without the leading slash (e.g. "cost", "compact").
+  name: string;
+  /// Args text after the command name; empty string when the user typed
+  /// the command bare (e.g. `/cost` vs `/effort medium`).
+  args: string;
+  /// Source JSONL entry timestamp (ISO 8601). Lets the phone use the same
+  /// timestamp for live and history-replayed instances of the same row, so
+  /// dedup across paths matches.
+  timestamp?: string;
+  /// SDK transcript UUID of the source `<command-name>` row.
+  sdkUuid?: string;
+}
+
+/**
+ * Stdout (or stderr) produced by a CLI slash command. Parsed from JSONL
+ * `<local-command-stdout>` / `<local-command-stderr>` entries. Pairs with
+ * the most recent preceding `LocalCommandInvokeEvent` from the same
+ * session. Gated by PEER_CAPABILITIES.LOCAL_COMMAND.
+ */
+export interface LocalCommandOutputEvent {
+  type: 'local_command_output';
+  /// Inner text of the tag, ANSI escapes preserved as-is — phone strips them.
+  stdout: string;
+  /// Set when sourced from `<local-command-stderr>` instead of stdout.
+  is_stderr?: boolean;
+  /// Source JSONL entry timestamp (ISO 8601). See LocalCommandInvokeEvent.
+  timestamp?: string;
+  /// SDK transcript UUID of the source `<local-command-stdout|stderr>` row.
+  sdkUuid?: string;
+  /// `parentUuid` from the source JSONL row — points at the matching
+  /// `<command-name>` row's `uuid`. Lets the phone pair invoke + output
+  /// even when ordering is non-monotonic (history backfill, multiple
+  /// outputs interleaved). Falls back to arrival-order pairing when absent.
+  parent_invoke_sdk_uuid?: string;
+}
+
+/**
+ * Boundary marker emitted right after `/compact` finishes condensing the
+ * conversation. Renders as a horizontal "Conversation compacted" divider
+ * in chat. Gated by PEER_CAPABILITIES.LOCAL_COMMAND.
+ */
+export interface CompactBoundaryEvent {
+  type: 'compact_boundary';
+  /// Source JSONL entry timestamp (ISO 8601). See LocalCommandInvokeEvent.
+  timestamp?: string;
+  /// SDK transcript UUID of the source `compact_boundary` system frame.
+  sdkUuid?: string;
+}
+
+/**
+ * Auto-generated summary written to the new conversation context after
+ * `/compact`. Carries the full multi-KB summary text as a single payload
+ * so the phone can render it in a collapsed disclosure (default closed).
+ * Gated by PEER_CAPABILITIES.LOCAL_COMMAND.
+ */
+export interface CompactSummaryEvent {
+  type: 'compact_summary';
+  summary: string;
+  /// Source JSONL entry timestamp (ISO 8601). See LocalCommandInvokeEvent.
+  timestamp?: string;
+  /// SDK transcript UUID of the source `isCompactSummary` user frame.
+  sdkUuid?: string;
 }
 
 export type ClaudeEvent =
@@ -105,7 +209,11 @@ export type ClaudeEvent =
   | PermissionRequestFromClaude
   | UserMessageEvent
   | SystemMessageEvent
-  | SubagentEvent;
+  | SubagentEvent
+  | LocalCommandInvokeEvent
+  | LocalCommandOutputEvent
+  | CompactBoundaryEvent
+  | CompactSummaryEvent;
 
 // ============================================================================
 // Phone → PC Commands
@@ -474,6 +582,17 @@ export interface SessionOutputEvent {
    * back-compat with older daemons; current daemons always set it.
    */
   session_seq?: number;
+  /**
+   * Stable per-row identifier mirrored from `event.sdkUuid` for ergonomic
+   * top-level access on the phone (avoids reaching into the discriminated
+   * `event` union to dedup). Always set when the daemon announces
+   * PEER_CAPABILITIES.STABLE_SDK_UUID; otherwise omitted.
+   */
+  sdk_uuid?: string;
+  /// Block index inside the source row's `message.content[]`. Set when
+  /// `event` is a thinking or assistant_message variant from a multi-block
+  /// row; omitted otherwise.
+  sdk_block_index?: number;
 }
 
 export interface SessionEndedEvent {
