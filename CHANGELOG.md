@@ -11,6 +11,11 @@ constant while peers still announce it).
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-05-13
+
+### Added
+- `LocalCommandOutputEvent.parent_invoke_sdk_uuid` — SDK `parentUuid` of the matching `<command-name>` row. Lets the phone pair invoke + output deterministically even under non-monotonic ordering (history backfill, multiple interleaved outputs). Falls back to arrival-order pairing when absent. Additive; old daemons that don't populate it still work via the fallback.
+
 ## [0.7.0] - 2026-05-13
 
 ### Added

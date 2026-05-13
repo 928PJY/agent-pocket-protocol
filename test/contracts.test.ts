@@ -403,13 +403,16 @@ test('local-command ClaudeEvent variants preserve their wire shape', async () =>
   const invoke: LocalCommandInvokeEvent = { type: 'local_command_invoke', name: 'cost', args: '' };
   const stdout: LocalCommandOutputEvent = { type: 'local_command_output', stdout: 'Total cost: $0.42' };
   const stderr: LocalCommandOutputEvent = { type: 'local_command_output', stdout: 'oops', is_stderr: true };
+  const paired: LocalCommandOutputEvent = { type: 'local_command_output', stdout: 'paired', parent_invoke_sdk_uuid: 'abc-123' };
   const boundary: CompactBoundaryEvent = { type: 'compact_boundary' };
   const summary: CompactSummaryEvent = { type: 'compact_summary', summary: '...long text...' };
 
   assert.equal(invoke.name, 'cost');
   assert.equal(invoke.args, '');
   assert.equal(stdout.is_stderr, undefined);
+  assert.equal(stdout.parent_invoke_sdk_uuid, undefined);
   assert.equal(stderr.is_stderr, true);
+  assert.equal(paired.parent_invoke_sdk_uuid, 'abc-123');
   assert.equal(boundary.type, 'compact_boundary');
   assert.ok(summary.summary.length > 0);
 });

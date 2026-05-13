@@ -166,6 +166,11 @@ export interface LocalCommandOutputEvent {
   timestamp?: string;
   /// SDK transcript UUID of the source `<local-command-stdout|stderr>` row.
   sdkUuid?: string;
+  /// `parentUuid` from the source JSONL row — points at the matching
+  /// `<command-name>` row's `uuid`. Lets the phone pair invoke + output
+  /// even when ordering is non-monotonic (history backfill, multiple
+  /// outputs interleaved). Falls back to arrival-order pairing when absent.
+  parent_invoke_sdk_uuid?: string;
 }
 
 /**
