@@ -914,6 +914,12 @@ export type PcEvent =
  *
  * Re-sent whenever the E2E channel is (re-)established, so stale caps from
  * an earlier session cannot leak into a new one.
+ *
+ * @deprecated As of 0.6.0, peer_hello is sent as a relay-control frame
+ * (`PeerHelloControlFrame` in `relay-control.ts`) so the relay can cache
+ * and replay it on reconnect. This E2E variant is retained only for the
+ * deploy-window where old daemons or old apps may still emit it; new code
+ * should neither send nor parse it. Removal scheduled for 0.7.0.
  */
 export interface PeerHello {
   type: 'peer_hello';
