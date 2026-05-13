@@ -11,6 +11,14 @@ constant while peers still announce it).
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-05-13
+
+### Added
+- `relay-control.ts` module exporting `RELAY_CONTROL_TYPE`, `RelayControlAction` union, `RelayControlFrame` base interface, `PeerHelloControlFrame`, and `isPeerHelloControlFrame` type guard. Promotes `peer_hello` from an E2E `PcEvent` to a relay-visible control frame so the relay can cache the most recent advertisement per pair and replay it to whichever peer comes online next. Eliminates the daemon-restart race where the phone never re-emits hello and the daemon's capability set stays empty.
+
+### Deprecated
+- `PeerHello` interface in `protocol.ts`. Retained for one release so consumers can drop their parsing/sending paths in lockstep; removal scheduled for 0.7.0.
+
 ## [0.3.0] - 2026-05-01
 
 ### Added
