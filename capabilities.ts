@@ -102,6 +102,36 @@ export const PEER_CAPABILITIES = {
    * switch on the phone announcing it (old phones keep getting deltas).
    */
   STABLE_SDK_UUID: 'sdk.stable_uuid',
+
+  /**
+   * Sync scope is an explicit phone→daemon contract instead of "everything
+   * the daemon knows about". When announced by the daemon:
+   *   - `SyncRequestCommand.cursors` is the *whitelist* of sessions the
+   *     phone wants backfilled. The daemon does NOT union with its own
+   *     `getAllSessions()` — sessions the phone didn't ask for stay quiet.
+   *   - `SyncRequestCommand.mode` carries the phone's intent ('recent' is
+   *     the new default; 'all' restores the legacy union for diagnostics).
+   *
+   * Old daemons (no cap) keep doing the union, so phones that haven't
+   * upgraded their cursor-selection logic still get the same bytes as
+   * before. New phones with new daemons get a much smaller working set
+   * — the primary lever for #250's force-flush timeout.
+   */
+  SYNC_SCOPED: 'messages.sync_scoped',
+
+  /**
+   * Daemon emits `sync_ack` immediately on receiving a `sync_request`,
+   * before any backfill IO. Carries per-session `estimated_messages` so
+   * the phone can replace its fixed 30s `force-flush` timer with a
+   * size-aware budget. Also lets the phone fail fast (no_ack) when
+   * `sync_request` is buffered behind an offline daemon — instead of
+   * blocking the staging buffer for the full 30s.
+   *
+   * Daemon also emits `session_history_done` per session as it finishes
+   * each one, so the phone can advance progress without waiting on the
+   * single trailing `sync_complete` frame.
+   */
+  SYNC_ACK: 'messages.sync_ack',
 } as const;
 
 export type PeerCapability = typeof PEER_CAPABILITIES[keyof typeof PEER_CAPABILITIES];
@@ -124,4 +154,6 @@ export const CURRENT_PEER_CAPABILITIES: PeerCapability[] = [
   PEER_CAPABILITIES.SESSION_REWIND,
   PEER_CAPABILITIES.LOCAL_COMMAND,
   PEER_CAPABILITIES.STABLE_SDK_UUID,
+  PEER_CAPABILITIES.SYNC_SCOPED,
+  PEER_CAPABILITIES.SYNC_ACK,
 ];

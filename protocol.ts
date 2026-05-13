@@ -490,12 +490,22 @@ export interface VerifyHistoryCommand {
  * list are treated as `last_seq = -1` — the daemon should backfill from the
  * earliest retained seq for any session it knows about that the phone does not.
  *
+ * `mode` is honored only when the daemon announces
+ * `PEER_CAPABILITIES.SYNC_SCOPED`. Under SYNC_SCOPED:
+ *   - 'recent' (default): daemon limits the sync to sessions in `cursors`.
+ *     This is the primary lever for #250 — the phone curates a small working
+ *     set instead of asking for every session it has ever seen.
+ *   - 'all': legacy behavior — daemon unions `cursors` with its own
+ *     `getAllSessions()`. Useful for diagnostics or first-pair backfill.
+ * Daemons without SYNC_SCOPED ignore `mode` entirely and always do the union.
+ *
  * Gated by PEER_CAPABILITIES.SYNC_BOUNDARY.
  */
 export interface SyncRequestCommand {
   type: 'sync_request';
   request_id: string;
   cursors: Array<{ session_id: string; last_seq: number }>;
+  mode?: 'recent' | 'all';
 }
 
 export type NotificationDeliveryEventType =
@@ -767,6 +777,45 @@ export interface SyncCompleteEvent {
 }
 
 /**
+ * Daemon emits this immediately on receiving a `sync_request`, BEFORE doing
+ * any backfill IO. Lets the phone:
+ *   - confirm the daemon actually received the request (vs. it being buffered
+ *     on the relay because the daemon is offline — fail fast in that case)
+ *   - replace its fixed force-flush timer with a size-aware budget based on
+ *     `sessions[*].estimated_messages`
+ *
+ * `sessions` enumerates exactly what the daemon will emit `session_history`
+ * for during this sync. Phone may use this to pre-allocate staging or surface
+ * progress UI.
+ *
+ * Gated by PEER_CAPABILITIES.SYNC_ACK.
+ */
+export interface SyncAckEvent {
+  type: 'sync_ack';
+  request_id: string;
+  sessions: Array<{ session_id: string; estimated_messages: number }>;
+}
+
+/**
+ * Per-session progress event during a sync. Daemon emits this immediately
+ * after queuing the `session_history` for one session, so the phone can:
+ *   - advance progress UI without waiting on the trailing `sync_complete`
+ *   - commit per-session if it chooses streaming behavior
+ *
+ * Order: `sync_ack` → (`session_history` + `session_history_done`)* →
+ *        `sync_complete`. The phone should not require this event — old
+ * daemons skip straight to `sync_complete` and that is still valid.
+ *
+ * Gated by PEER_CAPABILITIES.SYNC_ACK.
+ */
+export interface SessionHistoryDoneEvent {
+  type: 'session_history_done';
+  request_id: string;
+  session_id: string;
+  last_seq: number;
+}
+
+/**
  * Generic ack for control commands that don't carry a payload.
  * Sent in response to `set_permission_mode` and `set_model`.
  * Failures are reported via the existing `ErrorEvent` keyed on `request_id`.
@@ -1009,6 +1058,8 @@ export type PcEvent =
   | MessageAckEvent
   | HistoryDivergenceEvent
   | SyncCompleteEvent
+  | SyncAckEvent
+  | SessionHistoryDoneEvent
   | CommandAckEvent
   | SessionPermissionModeChangedEvent
   | SupportedModelsEvent
