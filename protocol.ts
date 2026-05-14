@@ -486,16 +486,36 @@ export interface VerifyHistoryCommand {
  * a side-staged batch in one transaction, avoiding session-list flicker and
  * chat-scroll churn caused by relay buffer drain on reconnect (see issue #160).
  *
- * `cursors` declares what the phone already has. Sessions absent from this
- * list are treated as `last_seq = -1` — the daemon should backfill from the
- * earliest retained seq for any session it knows about that the phone does not.
+ * `known_seqs` is a **hint**, not a scope. It tells the daemon the highest
+ * `session_seq` the phone has already seen for each session, so the daemon can
+ * skip those messages when backfilling. The daemon decides *which* sessions to
+ * sync based on its own state (status != history), independent of what the
+ * phone listed:
+ *   - Session listed in `known_seqs` AND active on daemon → daemon backfills
+ *     incrementally from `since seq=known_seqs[id]`.
+ *   - Session NOT in `known_seqs` but active on daemon → daemon backfills the
+ *     most recent tail window (default 30 messages). This covers brand-new
+ *     sessions created while the phone was offline.
+ *   - Session has `history` status on daemon → daemon skips it entirely;
+ *     phone must call `get_history` if the user opens that chat.
+ *
+ * Why a hint and not a whitelist: the phone's idea of "which sessions matter"
+ * is based on its stale local cache; the daemon's view of "what is currently
+ * active" is the source of truth. Making the phone authoritative caused
+ * sessions newly active during phone-offline windows to be missed on reconnect
+ * (#250 round 2). The daemon is now authoritative for scope.
  *
  * Gated by PEER_CAPABILITIES.SYNC_BOUNDARY.
  */
 export interface SyncRequestCommand {
   type: 'sync_request';
   request_id: string;
-  cursors: Array<{ session_id: string; last_seq: number }>;
+  /**
+   * Phone's local watermark map: session_id → highest session_seq seen.
+   * Empty object is valid (cold start). Daemon treats missing entries as
+   * "phone has not seen this session" and backfills the tail window.
+   */
+  known_seqs: Record<string, number>;
 }
 
 export type NotificationDeliveryEventType =
@@ -767,6 +787,45 @@ export interface SyncCompleteEvent {
 }
 
 /**
+ * Daemon emits this immediately on receiving a `sync_request`, BEFORE doing
+ * any backfill IO. Lets the phone:
+ *   - confirm the daemon actually received the request (vs. it being buffered
+ *     on the relay because the daemon is offline — fail fast in that case)
+ *   - replace its fixed force-flush timer with a size-aware budget based on
+ *     `sessions[*].estimated_messages`
+ *
+ * `sessions` enumerates exactly what the daemon will emit `session_history`
+ * for during this sync. Phone may use this to pre-allocate staging or surface
+ * progress UI.
+ *
+ * Gated by PEER_CAPABILITIES.SYNC_ACK.
+ */
+export interface SyncAckEvent {
+  type: 'sync_ack';
+  request_id: string;
+  sessions: Array<{ session_id: string; estimated_messages: number }>;
+}
+
+/**
+ * Per-session progress event during a sync. Daemon emits this immediately
+ * after queuing the `session_history` for one session, so the phone can:
+ *   - advance progress UI without waiting on the trailing `sync_complete`
+ *   - commit per-session if it chooses streaming behavior
+ *
+ * Order: `sync_ack` → (`session_history` + `session_history_done`)* →
+ *        `sync_complete`. The phone should not require this event — old
+ * daemons skip straight to `sync_complete` and that is still valid.
+ *
+ * Gated by PEER_CAPABILITIES.SYNC_ACK.
+ */
+export interface SessionHistoryDoneEvent {
+  type: 'session_history_done';
+  request_id: string;
+  session_id: string;
+  last_seq: number;
+}
+
+/**
  * Generic ack for control commands that don't carry a payload.
  * Sent in response to `set_permission_mode` and `set_model`.
  * Failures are reported via the existing `ErrorEvent` keyed on `request_id`.
@@ -1009,6 +1068,8 @@ export type PcEvent =
   | MessageAckEvent
   | HistoryDivergenceEvent
   | SyncCompleteEvent
+  | SyncAckEvent
+  | SessionHistoryDoneEvent
   | CommandAckEvent
   | SessionPermissionModeChangedEvent
   | SupportedModelsEvent
@@ -1034,11 +1095,17 @@ export type PcEvent =
  * Re-sent whenever the E2E channel is (re-)established, so stale caps from
  * an earlier session cannot leak into a new one.
  *
- * @deprecated As of 0.6.0, peer_hello is sent as a relay-control frame
- * (`PeerHelloControlFrame` in `relay-control.ts`) so the relay can cache
- * and replay it on reconnect. This E2E variant is retained only for the
- * deploy-window where old daemons or old apps may still emit it; new code
- * should neither send nor parse it. Removal scheduled for 0.7.0.
+ * Relay-mode peers (`product: 'app'|'daemon'` over WebSocket via the relay)
+ * use `PeerHelloControlFrame` in `relay-control.ts` instead — the relay
+ * caches it per pair and replays on reconnect, so capability negotiation is
+ * a state the relay owns rather than an event that fires on every connect.
+ *
+ * This E2E `PeerHello` PcEvent is the LAN-mode equivalent: when the phone
+ * connects directly to the daemon over LAN there is no relay to cache
+ * anything, so both peers exchange `peer_hello` inside the encrypted
+ * channel right after `lan_auth_result`. Retained indefinitely for that
+ * path — do not delete without first redesigning LAN-mode capability
+ * negotiation.
  */
 export interface PeerHello {
   type: 'peer_hello';
