@@ -14,9 +14,6 @@ constant while peers still announce it).
 ## [0.6.2] - 2026-05-14
 
 ### Added
-- `LocalCommandInvokeEvent`, `LocalCommandOutputEvent`, `CompactBoundaryEvent`, `CompactSummaryEvent` ClaudeEvent variants. Daemon parses `<command-name>` / `<local-command-stdout>` / `<local-command-stderr>` / `compact_boundary` / `isCompactSummary` JSONL entries into these structured events so the phone can render terminal-side `/cost`, `/recap`, `/compact`, etc. instead of dropping them.
-- `PEER_CAPABILITIES.LOCAL_COMMAND` (`local.command`), announced in `CURRENT_PEER_CAPABILITIES`. Daemon must continue to drop the underlying JSONL entries when the peer lacks this cap so old iOS builds don't receive payloads they can't render.
-- `LocalCommandOutputEvent.parent_invoke_sdk_uuid` — SDK `parentUuid` of the matching `<command-name>` row. Lets the phone pair invoke + output deterministically even under non-monotonic ordering (history backfill, multiple interleaved outputs). Falls back to arrival-order pairing when absent.
 - `PEER_CAPABILITIES.SYNC_ACK` (`messages.sync_ack`), announced in `CURRENT_PEER_CAPABILITIES`. Daemon emits `sync_ack` immediately on receiving a `sync_request` (before any backfill IO) carrying per-session `estimated_messages`, and `session_history_done` per session as each finishes streaming. Lets the phone shrink its fixed sync_complete watchdog and fail fast (no_ack) when the request is buffered behind an offline daemon. See agent-pocket #250.
 
 ### Changed (breaking)
@@ -30,7 +27,10 @@ constant while peers still announce it).
 
 ## [0.6.1] - 2026-05-13
 
-(No CHANGELOG entry. Patch release; see git history for the underlying commit.)
+### Added
+- `LocalCommandInvokeEvent`, `LocalCommandOutputEvent`, `CompactBoundaryEvent`, `CompactSummaryEvent` ClaudeEvent variants. Daemon parses `<command-name>` / `<local-command-stdout>` / `<local-command-stderr>` / `compact_boundary` / `isCompactSummary` JSONL entries into these structured events so the phone can render terminal-side `/cost`, `/recap`, `/compact`, etc. instead of dropping them.
+- `PEER_CAPABILITIES.LOCAL_COMMAND` (`local.command`), announced in `CURRENT_PEER_CAPABILITIES`. Daemon must continue to drop the underlying JSONL entries when the peer lacks this cap so old iOS builds don't receive payloads they can't render.
+- `LocalCommandOutputEvent.parent_invoke_sdk_uuid` — SDK `parentUuid` of the matching `<command-name>` row. Lets the phone pair invoke + output deterministically even under non-monotonic ordering (history backfill, multiple interleaved outputs). Falls back to arrival-order pairing when absent.
 
 ## [0.6.0] - 2026-05-13
 
