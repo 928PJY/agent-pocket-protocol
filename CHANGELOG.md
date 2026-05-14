@@ -11,29 +11,26 @@ constant while peers still announce it).
 
 ## [Unreleased]
 
-## [0.9.0] - 2026-05-14
+## [0.6.2] - 2026-05-14
+
+### Added
+- `LocalCommandInvokeEvent`, `LocalCommandOutputEvent`, `CompactBoundaryEvent`, `CompactSummaryEvent` ClaudeEvent variants. Daemon parses `<command-name>` / `<local-command-stdout>` / `<local-command-stderr>` / `compact_boundary` / `isCompactSummary` JSONL entries into these structured events so the phone can render terminal-side `/cost`, `/recap`, `/compact`, etc. instead of dropping them.
+- `PEER_CAPABILITIES.LOCAL_COMMAND` (`local.command`), announced in `CURRENT_PEER_CAPABILITIES`. Daemon must continue to drop the underlying JSONL entries when the peer lacks this cap so old iOS builds don't receive payloads they can't render.
+- `LocalCommandOutputEvent.parent_invoke_sdk_uuid` — SDK `parentUuid` of the matching `<command-name>` row. Lets the phone pair invoke + output deterministically even under non-monotonic ordering (history backfill, multiple interleaved outputs). Falls back to arrival-order pairing when absent.
+- `PEER_CAPABILITIES.SYNC_ACK` (`messages.sync_ack`), announced in `CURRENT_PEER_CAPABILITIES`. Daemon emits `sync_ack` immediately on receiving a `sync_request` (before any backfill IO) carrying per-session `estimated_messages`, and `session_history_done` per session as each finishes streaming. Lets the phone shrink its fixed sync_complete watchdog and fail fast (no_ack) when the request is buffered behind an offline daemon. See agent-pocket #250.
 
 ### Changed (breaking)
 - `SyncRequestCommand.cursors: Array<{ session_id, last_seq }>` replaced by `SyncRequestCommand.known_seqs: Record<string, number>` (session_id → highest seen session_seq). Semantics also changed: `known_seqs` is a **hint** the daemon uses to skip already-seen messages, not a whitelist scoping which sessions to backfill. The daemon now decides scope based on its own session state (status != history); sessions the phone has never seen still get backfilled (tail window) when they're active on the daemon side. Together this closes the agent-pocket #250 round-2 gap where phones using a stale local `lastActivity` ranking missed sessions newly active during phone-offline windows.
 - `SyncRequestCommand.mode` field removed. Scope is now daemon-authoritative; phones no longer signal `'recent' | 'all'`.
 
-### Removed (breaking)
-- `PEER_CAPABILITIES.SYNC_SCOPED` and its membership in `CURRENT_PEER_CAPABILITIES`. The capability shipped in 0.7.0 but the underlying design ("phone curates a working set whitelist") was retired during real-device validation of agent-pocket #250 before any consumer reached production. Daemons must update to the 0.9.0 contract.
-
 ### Migration notes
 - Daemons: read `command.known_seqs` (object), look up `known_seqs[sessionId]` to decide `since seq=N`; for sessions absent from the map but active locally, send a tail window (`limit=30` by default) so brand-new sessions still reach the phone.
-- Phones: stop building a `cursors` array; emit `{ ...lastSeenSeq }` directly as `known_seqs`. Stop sending `mode`. Drop the `SYNC_SCOPED` cap check on the daemon side.
+- Phones: stop building a `cursors` array; emit `{ ...lastSeenSeq }` directly as `known_seqs`. Stop sending `mode`. Bump `agent-pocket-protocol` to `^0.6.2`.
+- Note: this release breaks the `sync_request` shape but stays in 0.6.x because no consumer has reached production on the prior shape. After this release, all wire-protocol changes follow the usual additive-minor / breaking-major rules.
 
-## [0.8.0] - 2026-05-13
+## [0.6.1] - 2026-05-13
 
-### Added
-- `LocalCommandOutputEvent.parent_invoke_sdk_uuid` — SDK `parentUuid` of the matching `<command-name>` row. Lets the phone pair invoke + output deterministically even under non-monotonic ordering (history backfill, multiple interleaved outputs). Falls back to arrival-order pairing when absent. Additive; old daemons that don't populate it still work via the fallback.
-
-## [0.7.0] - 2026-05-13
-
-### Added
-- `LocalCommandInvokeEvent`, `LocalCommandOutputEvent`, `CompactBoundaryEvent`, `CompactSummaryEvent` ClaudeEvent variants. Daemon parses `<command-name>` / `<local-command-stdout>` / `<local-command-stderr>` / `compact_boundary` / `isCompactSummary` JSONL entries into these structured events so the phone can render terminal-side `/cost`, `/recap`, `/compact`, etc. instead of dropping them.
-- `PEER_CAPABILITIES.LOCAL_COMMAND` (`local.command`), announced in `CURRENT_PEER_CAPABILITIES`. Daemon must continue to drop the underlying JSONL entries when the peer lacks this cap so old iOS builds don't receive payloads they can't render.
+(No CHANGELOG entry. Patch release; see git history for the underlying commit.)
 
 ## [0.6.0] - 2026-05-13
 
