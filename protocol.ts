@@ -1095,11 +1095,17 @@ export type PcEvent =
  * Re-sent whenever the E2E channel is (re-)established, so stale caps from
  * an earlier session cannot leak into a new one.
  *
- * @deprecated As of 0.6.0, peer_hello is sent as a relay-control frame
- * (`PeerHelloControlFrame` in `relay-control.ts`) so the relay can cache
- * and replay it on reconnect. This E2E variant is retained only for the
- * deploy-window where old daemons or old apps may still emit it; new code
- * should neither send nor parse it. Removal scheduled for 0.7.0.
+ * Relay-mode peers (`product: 'app'|'daemon'` over WebSocket via the relay)
+ * use `PeerHelloControlFrame` in `relay-control.ts` instead — the relay
+ * caches it per pair and replays on reconnect, so capability negotiation is
+ * a state the relay owns rather than an event that fires on every connect.
+ *
+ * This E2E `PeerHello` PcEvent is the LAN-mode equivalent: when the phone
+ * connects directly to the daemon over LAN there is no relay to cache
+ * anything, so both peers exchange `peer_hello` inside the encrypted
+ * channel right after `lan_auth_result`. Retained indefinitely for that
+ * path — do not delete without first redesigning LAN-mode capability
+ * negotiation.
  */
 export interface PeerHello {
   type: 'peer_hello';
