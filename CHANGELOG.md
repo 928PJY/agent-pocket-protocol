@@ -11,6 +11,19 @@ constant while peers still announce it).
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-05-14
+
+### Changed (breaking)
+- `SyncRequestCommand.cursors: Array<{ session_id, last_seq }>` replaced by `SyncRequestCommand.known_seqs: Record<string, number>` (session_id → highest seen session_seq). Semantics also changed: `known_seqs` is a **hint** the daemon uses to skip already-seen messages, not a whitelist scoping which sessions to backfill. The daemon now decides scope based on its own session state (status != history); sessions the phone has never seen still get backfilled (tail window) when they're active on the daemon side. Together this closes the agent-pocket #250 round-2 gap where phones using a stale local `lastActivity` ranking missed sessions newly active during phone-offline windows.
+- `SyncRequestCommand.mode` field removed. Scope is now daemon-authoritative; phones no longer signal `'recent' | 'all'`.
+
+### Removed (breaking)
+- `PEER_CAPABILITIES.SYNC_SCOPED` and its membership in `CURRENT_PEER_CAPABILITIES`. The capability shipped in 0.7.0 but the underlying design ("phone curates a working set whitelist") was retired during real-device validation of agent-pocket #250 before any consumer reached production. Daemons must update to the 0.9.0 contract.
+
+### Migration notes
+- Daemons: read `command.known_seqs` (object), look up `known_seqs[sessionId]` to decide `since seq=N`; for sessions absent from the map but active locally, send a tail window (`limit=30` by default) so brand-new sessions still reach the phone.
+- Phones: stop building a `cursors` array; emit `{ ...lastSeenSeq }` directly as `known_seqs`. Stop sending `mode`. Drop the `SYNC_SCOPED` cap check on the daemon side.
+
 ## [0.8.0] - 2026-05-13
 
 ### Added

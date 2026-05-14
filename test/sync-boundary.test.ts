@@ -17,17 +17,37 @@ function loadFixture<T>(name: string): T {
   return JSON.parse(readFileSync(resolve(fixturesDir, name), 'utf8')) as T;
 }
 
-test('sync_request fixture matches SyncRequestCommand shape', () => {
+test('sync_request fixture matches SyncRequestCommand shape (known_seqs is a map)', () => {
   const fixture = loadFixture<SyncRequestCommand>('sync-request.json');
   assert.equal(fixture.type, 'sync_request');
   assert.equal(typeof fixture.request_id, 'string');
   assert.ok(fixture.request_id.length > 0);
-  assert.ok(Array.isArray(fixture.cursors));
-  for (const cursor of fixture.cursors) {
-    assert.equal(typeof cursor.session_id, 'string');
-    assert.equal(typeof cursor.last_seq, 'number');
-    assert.equal(Number.isInteger(cursor.last_seq), true);
+  assert.equal(typeof fixture.known_seqs, 'object');
+  assert.ok(fixture.known_seqs !== null);
+  assert.ok(!Array.isArray(fixture.known_seqs));
+  for (const [sessionId, seq] of Object.entries(fixture.known_seqs)) {
+    assert.equal(typeof sessionId, 'string');
+    assert.ok(sessionId.length > 0);
+    assert.equal(typeof seq, 'number');
+    assert.equal(Number.isInteger(seq), true);
+    assert.ok(seq >= 0);
   }
+});
+
+test('SyncRequestCommand has no legacy cursors/mode fields (post-#250 redesign)', () => {
+  const fixture = loadFixture<Record<string, unknown>>('sync-request.json');
+  assert.equal(fixture.cursors, undefined);
+  assert.equal(fixture.mode, undefined);
+});
+
+test('empty known_seqs is a valid sync_request (cold start)', () => {
+  const cold: SyncRequestCommand = {
+    type: 'sync_request',
+    request_id: 'sync-cold-start',
+    known_seqs: {},
+  };
+  assert.equal(cold.type, 'sync_request');
+  assert.equal(Object.keys(cold.known_seqs).length, 0);
 });
 
 test('sync_complete fixture matches SyncCompleteEvent shape', () => {
@@ -52,19 +72,6 @@ test('sync request_id round-trips through complete', () => {
 
 test('SYNC_BOUNDARY capability constant is declared', () => {
   assert.equal(PEER_CAPABILITIES.SYNC_BOUNDARY, 'messages.sync_boundary');
-});
-
-test('sync_request fixture omits mode (back-compat with pre-SYNC_SCOPED daemons)', () => {
-  const fixture = loadFixture<SyncRequestCommand>('sync-request.json');
-  assert.equal(fixture.mode, undefined);
-});
-
-test('scoped sync_request fixture matches SyncRequestCommand shape with mode=recent', () => {
-  const fixture = loadFixture<SyncRequestCommand>('sync-request-scoped.json');
-  assert.equal(fixture.type, 'sync_request');
-  assert.equal(fixture.mode, 'recent');
-  assert.ok(Array.isArray(fixture.cursors));
-  assert.ok(fixture.cursors.length > 0);
 });
 
 test('sync_ack fixture matches SyncAckEvent shape', () => {
@@ -97,15 +104,20 @@ test('sync_ack request_id round-trips with sync_complete (same request can corre
   assert.equal(ack.request_id, complete.request_id);
 });
 
-test('SYNC_SCOPED capability constant is declared', () => {
-  assert.equal(PEER_CAPABILITIES.SYNC_SCOPED, 'messages.sync_scoped');
-});
-
 test('SYNC_ACK capability constant is declared', () => {
   assert.equal(PEER_CAPABILITIES.SYNC_ACK, 'messages.sync_ack');
 });
 
-test('CURRENT_PEER_CAPABILITIES announces SYNC_SCOPED and SYNC_ACK', () => {
-  assert.ok(CURRENT_PEER_CAPABILITIES.includes(PEER_CAPABILITIES.SYNC_SCOPED));
+test('SYNC_SCOPED capability constant has been removed (replaced by daemon-authoritative scope)', () => {
+  assert.equal(
+    (PEER_CAPABILITIES as Record<string, string>).SYNC_SCOPED,
+    undefined,
+  );
+});
+
+test('CURRENT_PEER_CAPABILITIES announces SYNC_ACK but not SYNC_SCOPED', () => {
   assert.ok(CURRENT_PEER_CAPABILITIES.includes(PEER_CAPABILITIES.SYNC_ACK));
+  assert.ok(
+    !CURRENT_PEER_CAPABILITIES.includes('messages.sync_scoped' as never),
+  );
 });

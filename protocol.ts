@@ -486,26 +486,36 @@ export interface VerifyHistoryCommand {
  * a side-staged batch in one transaction, avoiding session-list flicker and
  * chat-scroll churn caused by relay buffer drain on reconnect (see issue #160).
  *
- * `cursors` declares what the phone already has. Sessions absent from this
- * list are treated as `last_seq = -1` — the daemon should backfill from the
- * earliest retained seq for any session it knows about that the phone does not.
+ * `known_seqs` is a **hint**, not a scope. It tells the daemon the highest
+ * `session_seq` the phone has already seen for each session, so the daemon can
+ * skip those messages when backfilling. The daemon decides *which* sessions to
+ * sync based on its own state (status != history), independent of what the
+ * phone listed:
+ *   - Session listed in `known_seqs` AND active on daemon → daemon backfills
+ *     incrementally from `since seq=known_seqs[id]`.
+ *   - Session NOT in `known_seqs` but active on daemon → daemon backfills the
+ *     most recent tail window (default 30 messages). This covers brand-new
+ *     sessions created while the phone was offline.
+ *   - Session has `history` status on daemon → daemon skips it entirely;
+ *     phone must call `get_history` if the user opens that chat.
  *
- * `mode` is honored only when the daemon announces
- * `PEER_CAPABILITIES.SYNC_SCOPED`. Under SYNC_SCOPED:
- *   - 'recent' (default): daemon limits the sync to sessions in `cursors`.
- *     This is the primary lever for #250 — the phone curates a small working
- *     set instead of asking for every session it has ever seen.
- *   - 'all': legacy behavior — daemon unions `cursors` with its own
- *     `getAllSessions()`. Useful for diagnostics or first-pair backfill.
- * Daemons without SYNC_SCOPED ignore `mode` entirely and always do the union.
+ * Why a hint and not a whitelist: the phone's idea of "which sessions matter"
+ * is based on its stale local cache; the daemon's view of "what is currently
+ * active" is the source of truth. Making the phone authoritative caused
+ * sessions newly active during phone-offline windows to be missed on reconnect
+ * (#250 round 2). The daemon is now authoritative for scope.
  *
  * Gated by PEER_CAPABILITIES.SYNC_BOUNDARY.
  */
 export interface SyncRequestCommand {
   type: 'sync_request';
   request_id: string;
-  cursors: Array<{ session_id: string; last_seq: number }>;
-  mode?: 'recent' | 'all';
+  /**
+   * Phone's local watermark map: session_id → highest session_seq seen.
+   * Empty object is valid (cold start). Daemon treats missing entries as
+   * "phone has not seen this session" and backfills the tail window.
+   */
+  known_seqs: Record<string, number>;
 }
 
 export type NotificationDeliveryEventType =
