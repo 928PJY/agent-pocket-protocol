@@ -114,6 +114,8 @@ export const PEER_CAPABILITIES = {
    * Daemon also emits `session_history_done` per session as it finishes
    * each one, so the phone can advance progress without waiting on the
    * single trailing `sync_complete` frame.
+   *
+   * @requires messages.sync_boundary
    */
   SYNC_ACK: 'messages.sync_ack',
 
@@ -148,6 +150,8 @@ export const PEER_CAPABILITIES = {
    * `session_list` items carry `tail_seq` (the daemon's allocator high-water
    * mark for that session), and `verify_history` / `history_divergence`
    * exchanges are evaluated against the phone's **on-disk** count and tail.
+   *
+   * @requires messages.seq_authoritative
    *
    * Together these let two flows converge that previously couldn't:
    *   - `loadInitialMessages` skips the network entirely when the phone's

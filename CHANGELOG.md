@@ -11,6 +11,17 @@ constant while peers still announce it).
 
 ## [Unreleased]
 
+### Removed
+- `PERMISSION_TTL_SECONDS` 常量。死代码——daemon 从未 import 它，自己用 `CONTROLLER_PERMISSION_TTL_SECONDS = 0`。删除以避免误导。
+
+### Changed
+- `capabilities.ts` 给隐式依赖的 cap 加 `@requires` JSDoc 标注（`MESSAGES_PRECISE_DIVERGENCE`, `SYNC_ACK` 等），不影响运行时行为。
+
+### Added
+- 11 个先前缺失 fixture 的 message type 补 shape contract test：EmergencyAbortCommand, KillSessionCommand, QuestionResponseCommand, PermissionExpiredEvent, PermissionDismissedEvent, FileContentEvent, ErrorEvent, SessionOutputAckCommand, GetHistoryCommand, SetPreferencesCommand, InterruptSessionCommand。
+
+Refs: #21 (Protocol v1.0 立法计划 hotfix 批次)
+
 ## [0.6.3] - 2026-05-15
 
 ### Added
