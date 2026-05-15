@@ -11,6 +11,29 @@ constant while peers still announce it).
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-05-15
+
+### Added
+- `SyncAckEvent.timeout_hint_ms`: daemon self-reports expected backfill duration so phone can use a size-aware staging timeout instead of the fixed 30s fallback. Cap: `messages.sync_timeout_hint`.
+- `SyncAckEvent.chunked`: signals chunked session history delivery (each chunk ≤50 messages). Cap: `messages.session_history_chunked`.
+- `SyncRequestCommand.priority_session_id`: phone requests one session's pending events before bulk backfill (APNs-wake fast path). Cap: `messages.sync_priority_session`.
+- `PermissionResponseAckEvent`: daemon immediately confirms permission_response processing, eliminating 1-2 RTT spinner wait. Cap: `permissions.response_ack`.
+- `MessageAckEvent.status` gains `turn_started`: emitted on first assistant token for per-message typing feedback. Cap: `messages.ack_turn_started`.
+- `CommandAckEvent.effective_at`: daemon-authoritative epoch ms of command effect. Cap: `session.control.effective_at`.
+- `wake_blob` doc: plaintext prefixed with 1-byte key_epoch; NSE fallback on mismatch. Wire type unchanged. Cap: `wake.key_epoch`.
+- `OfflineOverflowEvent`: relay injects on FIFO eviction, triggers phone recovery. Cap: `relay.offline_overflow`.
+- `SessionHistoryChunkEvent`: chunked backfill with chunk_index/chunks_total/messages[]. Cap: `messages.session_history_chunked`.
+- `SendMessageCommand.client_message_id` doc: 5-min idempotency window. Cap: `messages.id_idempotent`.
+- 9 new peer capabilities added to `CURRENT_PEER_CAPABILITIES`.
+
+### Changed
+- (non-breaking) `MessageAckEvent.status` union extended from 3 to 4 variants.
+
+This release is entirely additive — no breaking changes.
+
+Refs: 928PJY/agent-pocket-protocol#21
+
+
 ## [0.6.3] - 2026-05-15
 
 ### Added
