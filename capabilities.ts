@@ -161,6 +161,88 @@ export const PEER_CAPABILITIES = {
    * legacy "always request, blind full refetch" behaviour.
    */
   MESSAGES_PRECISE_DIVERGENCE: 'messages.precise_divergence',
+
+  // ---- v0.7.0 capabilities ----
+
+  /**
+   * Daemon includes `timeout_hint_ms` in `sync_ack`, allowing the phone to
+   * use a size-aware staging timeout instead of the fixed 30s fallback.
+   *
+   * @requires messages.sync_ack
+   */
+  SYNC_TIMEOUT_HINT: 'messages.sync_timeout_hint',
+
+  /**
+   * Phone can set `priority_session_id` on `sync_request` to have the daemon
+   * emit that session's pending events (permissions, status) before the bulk
+   * backfill. Intended for APNs-wake scenarios.
+   *
+   * @requires messages.sync_boundary
+   */
+  SYNC_PRIORITY_SESSION: 'messages.sync_priority_session',
+
+  /**
+   * Daemon emits `permission_response_ack` immediately when it processes a
+   * phone's permission_response command, so the phone can exit the approve
+   * button spinner without waiting for the slower session_status transition.
+   */
+  PERMISSION_RESPONSE_ACK: 'permissions.response_ack',
+
+  /**
+   * Daemon emits `message_ack { status: 'turn_started' }` when the first
+   * assistant token / stream chunk arrives for a phone-sent message. Lets
+   * the phone show "Claude is typing..." feedback keyed to the specific
+   * message rather than relying on session_status alone.
+   *
+   * @requires messages.delivery_acks
+   */
+  MESSAGE_ACK_TURN_STARTED: 'messages.ack_turn_started',
+
+  /**
+   * Daemon includes `effective_at` (epoch ms) in `command_ack`, giving
+   * phones the daemon-authoritative timestamp of when the command took
+   * effect (as opposed to when the phone sent it or the relay routed it).
+   *
+   * @requires session.control
+   */
+  COMMAND_ACK_EFFECTIVE_AT: 'session.control.effective_at',
+
+  /**
+   * Daemon prefixes wake_blob ciphertext with 1 byte key_epoch before
+   * encrypting. NSE uses this to detect key mismatch and fallback to
+   * generic copy rather than showing decrypt-failure garbage.
+   */
+  WAKE_BLOB_KEY_EPOCH: 'wake.key_epoch',
+
+  /**
+   * Relay injects `offline_overflow` events when FIFO eviction drops
+   * buffered messages for a pair. Phone should trigger verify_history +
+   * get_history on receipt.
+   *
+   * Note: unlike other caps, this is announced/gated by the relay (or
+   * the peer acting on behalf of relay awareness), not by the daemon.
+   * The "peer" for this cap is the relay infrastructure itself.
+   */
+  OFFLINE_OVERFLOW: 'relay.offline_overflow',
+
+  /**
+   * Daemon supports chunked session history delivery: when sync_ack
+   * carries `chunked: true`, history is delivered as multiple
+   * `session_history_chunk` frames (each ≤50 messages) per session,
+   * terminated by `session_history_done`.
+   *
+   * @requires messages.sync_ack
+   */
+  SESSION_HISTORY_CHUNKED: 'messages.session_history_chunked',
+
+  /**
+   * Daemon guarantees 5-minute idempotency window for
+   * `SendMessageCommand.client_message_id`. Within the window, duplicate
+   * ids get an ack without re-injection.
+   *
+   * @requires messages.delivery_acks
+   */
+  MESSAGE_ID_IDEMPOTENT: 'messages.id_idempotent',
 } as const;
 
 export type PeerCapability = typeof PEER_CAPABILITIES[keyof typeof PEER_CAPABILITIES];
@@ -186,4 +268,13 @@ export const CURRENT_PEER_CAPABILITIES: PeerCapability[] = [
   PEER_CAPABILITIES.SYNC_ACK,
   PEER_CAPABILITIES.MESSAGES_SEQ_AUTHORITATIVE,
   PEER_CAPABILITIES.MESSAGES_PRECISE_DIVERGENCE,
+  PEER_CAPABILITIES.SYNC_TIMEOUT_HINT,
+  PEER_CAPABILITIES.SYNC_PRIORITY_SESSION,
+  PEER_CAPABILITIES.PERMISSION_RESPONSE_ACK,
+  PEER_CAPABILITIES.MESSAGE_ACK_TURN_STARTED,
+  PEER_CAPABILITIES.COMMAND_ACK_EFFECTIVE_AT,
+  PEER_CAPABILITIES.WAKE_BLOB_KEY_EPOCH,
+  PEER_CAPABILITIES.OFFLINE_OVERFLOW,
+  PEER_CAPABILITIES.SESSION_HISTORY_CHUNKED,
+  PEER_CAPABILITIES.MESSAGE_ID_IDEMPOTENT,
 ];

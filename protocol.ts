@@ -255,6 +255,14 @@ export interface SendMessageCommand {
    * in MessageAckEvent so the phone can transition the local message
    * state machine from sending → delivered → sent (or → failed).
    * Optional for backward compat with older phone clients.
+   *
+   * Idempotency: within a 5-minute window, daemon MUST treat a duplicate
+   * `client_message_id` as a no-op and reply with an ack (status=received
+   * or committed) without re-injecting the message into the session.
+   * After the window expires, a re-sent id is treated as a new message.
+   *
+   * Gated by PEER_CAPABILITIES.MESSAGE_ID_IDEMPOTENT for the 5-min dedup
+   * guarantee; without the cap, daemon may or may not dedup.
    */
   client_message_id?: string;
 }
@@ -516,6 +524,16 @@ export interface SyncRequestCommand {
    * "phone has not seen this session" and backfills the tail window.
    */
   known_seqs: Record<string, number>;
+  /**
+   * When set, the daemon should prioritise this session's pending events
+   * (PermissionRequestEvent, latest SessionStatusEvent) immediately after
+   * sync_ack and before other sessions' backfill. Intended for APNs-wake
+   * scenarios where the phone needs to show one specific actionable item
+   * without waiting for the full sync to complete.
+   *
+   * Gated by PEER_CAPABILITIES.SYNC_PRIORITY_SESSION.
+   */
+  priority_session_id?: string;
 }
 
 export type NotificationDeliveryEventType =
@@ -752,7 +770,7 @@ export interface MessageAckEvent {
   type: 'message_ack';
   client_message_id: string;
   session_id: string;
-  status: 'received' | 'committed' | 'failed';
+  status: 'received' | 'committed' | 'failed' | 'turn_started';
   /** Daemon-side message identifier when committed (currently unused — reserved). */
   server_message_id?: string;
   /** Failure reason when status='failed'. */
@@ -820,6 +838,24 @@ export interface SyncAckEvent {
   type: 'sync_ack';
   request_id: string;
   sessions: Array<{ session_id: string; estimated_messages: number }>;
+  /**
+   * Daemon self-reports the expected time (ms) to complete backfill for this
+   * sync. Phone should start a fallback timer at this budget; if sync_complete
+   * hasn't arrived by then, phone should force-flush staging and gap-fill via
+   * get_history. Omitted when the daemon cannot estimate (e.g. cold cache).
+   *
+   * Gated by PEER_CAPABILITIES.SYNC_TIMEOUT_HINT.
+   */
+  timeout_hint_ms?: number;
+  /**
+   * When true, the daemon will deliver session history as multiple
+   * `session_history_chunk` frames per session (each ≤50 messages) rather
+   * than a single `session_history` frame. Phone should accumulate chunks
+   * until `session_history_done` before committing.
+   *
+   * Gated by PEER_CAPABILITIES.SESSION_HISTORY_CHUNKED.
+   */
+  chunked?: boolean;
 }
 
 /**
@@ -851,6 +887,14 @@ export interface CommandAckEvent {
   request_id: string;
   session_id: string;
   command: 'set_permission_mode' | 'set_model';
+  /**
+   * Epoch ms when the command actually took effect on the daemon side.
+   * Distinct from the relay envelope timestamp (which is send time). Phone
+   * can display "applied Xms ago" or detect stale acks.
+   *
+   * Gated by PEER_CAPABILITIES.COMMAND_ACK_EFFECTIVE_AT.
+   */
+  effective_at?: number;
 }
 
 /**
@@ -1070,6 +1114,58 @@ export interface RewindSessionResponseEvent {
   new_session_id?: string;
 }
 
+/**
+ * Daemon acknowledges receipt and processing of a phone's permission_response
+ * command. Emitted immediately so the phone can exit its "spinner" state
+ * without waiting for the slower SessionStatusEvent transition.
+ *
+ * Gated by PEER_CAPABILITIES.PERMISSION_RESPONSE_ACK.
+ */
+export interface PermissionResponseAckEvent {
+  type: 'permission_response_ack';
+  request_id: string;
+  session_id: string;
+  status: 'applied' | 'expired' | 'duplicate';
+  ts: number;
+}
+
+/**
+ * Relay injects this event when FIFO eviction drops offline-buffered messages
+ * for a pair. The phone should trigger a full verify_history + get_history to
+ * recover the dropped window.
+ *
+ * Note: this event is injected by the relay, not the daemon. The corresponding
+ * PEER_CAPABILITIES.OFFLINE_OVERFLOW cap is announced by the relay (or gated
+ * as a relay feature) — it's special in that the "peer" is the relay itself.
+ *
+ * Gated by PEER_CAPABILITIES.OFFLINE_OVERFLOW.
+ */
+export interface OfflineOverflowEvent {
+  type: 'offline_overflow';
+  dropped_count: number;
+  oldest_dropped_ts: number;
+  newest_dropped_ts: number;
+}
+
+/**
+ * One chunk of a chunked session history backfill. Daemon sends N chunks
+ * (each containing up to 50 messages) per session, followed by a
+ * `session_history_done` terminator. Phone accumulates chunks and commits
+ * only on receiving the done event.
+ *
+ * Only emitted when `SyncAckEvent.chunked === true`.
+ *
+ * Gated by PEER_CAPABILITIES.SESSION_HISTORY_CHUNKED.
+ */
+export interface SessionHistoryChunkEvent {
+  type: 'session_history_chunk';
+  request_id: string;
+  session_id: string;
+  chunk_index: number;
+  chunks_total: number;
+  messages: Array<Record<string, unknown>>;
+}
+
 export type PcEvent =
   | SessionStartedEvent
   | SessionOutputEvent
@@ -1093,7 +1189,10 @@ export type PcEvent =
   | SupportedCommandsEvent
   | SupportedAgentsEvent
   | McpServerStatusEvent
-  | RewindSessionResponseEvent;
+  | RewindSessionResponseEvent
+  | PermissionResponseAckEvent
+  | OfflineOverflowEvent
+  | SessionHistoryChunkEvent;
 
 // ============================================================================
 // Peer Hello (E2E, peer-to-peer)
@@ -1177,6 +1276,16 @@ export interface RelayEnvelope {
    * Opaque fixed-size encrypted wake summary for iOS Notification Service
    * Extension display. The relay may copy it into APNs payloads but must not
    * decrypt or interpret it.
+   *
+   * Wire format: base64-encoded ciphertext. The plaintext (after decryption)
+   * should be prefixed with 1 byte indicating the `key_epoch` used during
+   * encryption. NSE decrypts using its stored key; if the epoch byte doesn't
+   * match the NSE's current key (e.g. after a rekey the phone hasn't processed
+   * yet), NSE must fallback to a generic "New notification" banner rather than
+   * crashing or showing garbage.
+   *
+   * Gated by PEER_CAPABILITIES.WAKE_BLOB_KEY_EPOCH for the epoch-prefix
+   * convention; older daemons send wake_blob without the prefix byte.
    */
   wake_blob?: string;
 }
