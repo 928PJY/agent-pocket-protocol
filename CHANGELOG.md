@@ -11,8 +11,6 @@ constant while peers still announce it).
 
 ## [Unreleased]
 
-## [0.6.4] - 2026-05-15
-
 ### Removed
 - `PERMISSION_TTL_SECONDS` 常量。死代码——daemon 从未 import 它，自己用 `CONTROLLER_PERMISSION_TTL_SECONDS = 0`。删除以避免误导。
 
@@ -22,7 +20,7 @@ constant while peers still announce it).
 ### Added
 - 11 个先前缺失 fixture 的 message type 补 shape contract test：EmergencyAbortCommand, KillSessionCommand, QuestionResponseCommand, PermissionExpiredEvent, PermissionDismissedEvent, FileContentEvent, ErrorEvent, SessionOutputAckCommand, GetHistoryCommand, SetPreferencesCommand, InterruptSessionCommand。
 
-Refs: #21 (Protocol v1.0 立法计划 v0.6.4 hotfix)
+Refs: #21 (Protocol v1.0 立法计划 hotfix 批次)
 
 ## [0.6.3] - 2026-05-15
 
