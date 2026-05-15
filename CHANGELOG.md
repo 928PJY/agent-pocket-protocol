@@ -11,6 +11,26 @@ constant while peers still announce it).
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-05-15
+
+### Added
+- `PEER_CAPABILITIES.MESSAGES_PRECISE_DIVERGENCE` (`messages.precise_divergence`), announced in `CURRENT_PEER_CAPABILITIES`. Pins down two related guarantees:
+  - `SessionInfo.tail_seq` is set on every `session_list` item, carrying the daemon's allocator high-water mark for that session. Phones can compare it to their on-disk tail and skip the network entirely when they're already in sync — no more "load session → re-fetch 30 tail messages we already have" round trip.
+  - `verify_history.count` and `verify_history.tail_seq` from the phone reflect the phone's **on-disk** state, not its in-memory window. The daemon's existing `count_mismatch` / `tail_seq_mismatch` checks are unchanged, but the inputs are now the right thing — long sessions where the phone trims in-memory to N stop firing spurious divergences.
+  - `history_divergence` followups go out as `get_history { since_seq = disk_tail }`, so the daemon ships only the missing increment instead of re-shipping its 30-message default tail window. The legacy "blind full refetch" path could never close a gap larger than 30; this one converges in one round trip.
+- `SessionInfo.tail_seq` field added to `protocol.ts` (optional; populated only by daemons that announce the new cap).
+
+## [0.7.0] - 2026-05-14
+
+### Added
+- `PEER_CAPABILITIES.MESSAGES_SEQ_AUTHORITATIVE` (`messages.seq_authoritative`), announced in `CURRENT_PEER_CAPABILITIES`. Promotes `session_seq` to the SOLE valid sort key for messages within a session and pins down stronger guarantees:
+  - Every history message in `session_history.messages[]` carries a top-level `session_seq` field (the legacy `seq` field stays set for back-compat with old phones).
+  - `session_seq` values are stable across daemon restarts and JSONL re-parses — a given `sdk_uuid` keeps the same `session_seq` forever (daemon persists an `sdk_uuid → session_seq` seqmap per session).
+  - History `session_seq` and live `SessionOutputEvent.session_seq` share the same allocator.
+  - During a sync window, `sync_complete.delivered[].last_seq` is the per-session terminal seq backfilled by this sync; phones can fold real-time `session_output` (with seq > `last_seq`) in by seq.
+  - `timestamp` is for display only — phones must not use it as a sort key when this cap is in effect.
+- `SessionOutputEvent.session_seq` documentation upgraded to reflect the cross-restart-stable contract under the new cap.
+
 ## [0.6.2] - 2026-05-14
 
 ### Added

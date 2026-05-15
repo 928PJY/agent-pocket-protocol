@@ -392,6 +392,37 @@ test('LOCAL_COMMAND capability is announced', () => {
   assert.ok(CURRENT_PEER_CAPABILITIES.includes(PEER_CAPABILITIES.LOCAL_COMMAND));
 });
 
+test('MESSAGES_PRECISE_DIVERGENCE capability is announced', () => {
+  assert.equal(PEER_CAPABILITIES.MESSAGES_PRECISE_DIVERGENCE, 'messages.precise_divergence');
+  assert.ok(CURRENT_PEER_CAPABILITIES.includes(PEER_CAPABILITIES.MESSAGES_PRECISE_DIVERGENCE));
+});
+
+test('SessionInfo.tail_seq is an optional number on the wire', async () => {
+  const protocol = await import('../protocol.js');
+  type SessionInfo = import('../protocol.js').SessionInfo;
+  void protocol;
+
+  // tail_seq populated by daemons that announce MESSAGES_PRECISE_DIVERGENCE.
+  const withTail: SessionInfo = {
+    session_id: 's1',
+    status: 'ready' as never,
+    working_directory: '/x',
+    project_name: 'p',
+    last_activity: 0,
+    tail_seq: 466,
+  };
+  // Older daemons just omit it — the field is optional.
+  const withoutTail: SessionInfo = {
+    session_id: 's2',
+    status: 'ready' as never,
+    working_directory: '/x',
+    project_name: 'p',
+    last_activity: 0,
+  };
+  assert.equal(withTail.tail_seq, 466);
+  assert.equal(withoutTail.tail_seq, undefined);
+});
+
 test('local-command ClaudeEvent variants preserve their wire shape', async () => {
   const protocol = await import('../protocol.js');
   type LocalCommandInvokeEvent = import('../protocol.js').LocalCommandInvokeEvent;
