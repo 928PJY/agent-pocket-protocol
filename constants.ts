@@ -1,8 +1,6 @@
 // Agent Pocket — Shared Constants
 
 export const PERMISSION_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
-export const PERMISSION_TTL_SECONDS = 30;
-
 export const SESSION_TOKEN_EXPIRY_HOURS = 24;
 export const DEVICE_TOKEN_EXPIRY_DAYS = 90;
 export const PAIRING_EXPIRY_SECONDS = 120; // 2 minutes
