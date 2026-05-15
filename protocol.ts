@@ -600,6 +600,12 @@ export interface SessionOutputEvent {
    * daemon when the event is first emitted. Used by the phone to detect
    * gaps and request fill via get_history{since_seq}. Optional only for
    * back-compat with older daemons; current daemons always set it.
+   *
+   * When the daemon announces PEER_CAPABILITIES.MESSAGES_SEQ_AUTHORITATIVE
+   * this number is the SOLE valid sort key for messages within a session,
+   * is ALWAYS set, and is stable across daemon restarts and JSONL re-parses
+   * (a given `sdk_uuid` keeps the same `session_seq` forever). Phones must
+   * use it as the absolute order; `timestamp` is for display only.
    */
   session_seq?: number;
   /**
@@ -706,6 +712,16 @@ export interface SessionInfo {
    * observed sessions and for controller sessions that opted out.
    */
   dangerously_skip_permissions?: boolean;
+  /**
+   * Highest `session_seq` the daemon has ever assigned for this session
+   * (i.e. the persistent allocator's `tail()`). Phones gate
+   * `loadInitialMessages` on this: when the disk-cache tail equals
+   * `tail_seq`, no network request is needed — the session is already in
+   * sync. Only populated under PEER_CAPABILITIES.MESSAGES_PRECISE_DIVERGENCE;
+   * older daemons leave it undefined and phones fall back to the legacy
+   * "always request" path.
+   */
+  tail_seq?: number;
 }
 
 export interface FileContentEvent {

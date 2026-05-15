@@ -116,6 +116,51 @@ export const PEER_CAPABILITIES = {
    * single trailing `sync_complete` frame.
    */
   SYNC_ACK: 'messages.sync_ack',
+
+  /**
+   * `session_seq` is the authoritative per-session monotonic sequence number
+   * for ALL messages — historical and live — and is the ONLY valid sort key.
+   * `timestamp` is for display only and must not be used for ordering.
+   *
+   * When this cap is announced by the daemon:
+   *   - Every history message (in `session_history.messages[]`) carries
+   *     `session_seq` (top-level field; the legacy `seq` field is also set
+   *     for back-compat with old phones).
+   *   - `session_seq` values are stable across daemon restarts and JSONL
+   *     re-parses: a given `sdk_uuid` keeps the same `session_seq` forever.
+   *   - History `session_seq` and live `SessionOutputEvent.session_seq`
+   *     share the same allocator (both come from a per-session persisted
+   *     `seqmap` keyed on `sdk_uuid`).
+   *   - During a sync window (`sync_request` → `sync_complete`), the daemon
+   *     guarantees that backfilled `session_history` frames cover every
+   *     `session_seq` strictly greater than the phone's `known_seqs[id]` and
+   *     less-or-equal to `sync_complete.delivered[].last_seq`. Real-time
+   *     `session_output` events with seq > `last_seq` are still delivered
+   *     in flight; the phone uses `last_seq` to fold them in correctly.
+   *
+   * When this cap is absent the phone falls back to the legacy
+   * `(timestamp, seq?)` ordering and tolerates seq churn across daemon
+   * restarts.
+   */
+  MESSAGES_SEQ_AUTHORITATIVE: 'messages.seq_authoritative',
+
+  /**
+   * `session_list` items carry `tail_seq` (the daemon's allocator high-water
+   * mark for that session), and `verify_history` / `history_divergence`
+   * exchanges are evaluated against the phone's **on-disk** count and tail.
+   *
+   * Together these let two flows converge that previously couldn't:
+   *   - `loadInitialMessages` skips the network entirely when the phone's
+   *     disk tail equals the daemon's `tail_seq` for that session.
+   *   - `history_divergence` is followed up with a precise
+   *     `get_history { since_seq = disk_tail }` instead of a blind
+   *     `requestFullHistory` (which can never close a gap larger than the
+   *     daemon's wire-window default of 30 parents).
+   *
+   * When this cap is absent on the daemon, the phone keeps using the
+   * legacy "always request, blind full refetch" behaviour.
+   */
+  MESSAGES_PRECISE_DIVERGENCE: 'messages.precise_divergence',
 } as const;
 
 export type PeerCapability = typeof PEER_CAPABILITIES[keyof typeof PEER_CAPABILITIES];
@@ -139,4 +184,6 @@ export const CURRENT_PEER_CAPABILITIES: PeerCapability[] = [
   PEER_CAPABILITIES.LOCAL_COMMAND,
   PEER_CAPABILITIES.STABLE_SDK_UUID,
   PEER_CAPABILITIES.SYNC_ACK,
+  PEER_CAPABILITIES.MESSAGES_SEQ_AUTHORITATIVE,
+  PEER_CAPABILITIES.MESSAGES_PRECISE_DIVERGENCE,
 ];
