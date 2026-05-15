@@ -718,32 +718,19 @@ export interface SessionOutputEvent {
   type: 'session_output';
   session_id: string;
   event: ClaudeEvent;
-  timestamp: number;
+  /**
+   * Display-only timestamp. MUST NOT be used as a sort key — use `session_seq`.
+   * Named `display_at` (rather than the legacy `timestamp`) to make this
+   * explicit. Phone may format it for "2 min ago" labels.
+   */
+  display_at: number;
   agent_type?: AgentType;
   /**
-   * Per-session monotonically increasing sequence number assigned by the
-   * daemon when the event is first emitted. Used by the phone to detect
-   * gaps and request fill via get_history{since_seq}. Optional only for
-   * back-compat with older daemons; current daemons always set it.
-   *
-   * When the daemon announces PEER_CAPABILITIES.MESSAGES_SEQ_AUTHORITATIVE
-   * this number is the SOLE valid sort key for messages within a session,
-   * is ALWAYS set, and is stable across daemon restarts and JSONL re-parses
-   * (a given `sdk_uuid` keeps the same `session_seq` forever). Phones must
-   * use it as the absolute order; `timestamp` is for display only.
+   * Per-session monotonically increasing sequence number. This is the SOLE
+   * valid sort key for messages within a session — stable across daemon
+   * restarts and JSONL re-parses. Always set in v1.0+.
    */
-  session_seq?: number;
-  /**
-   * Stable per-row identifier mirrored from `event.sdkUuid` for ergonomic
-   * top-level access on the phone (avoids reaching into the discriminated
-   * `event` union to dedup). Always set when the daemon announces
-   * PEER_CAPABILITIES.STABLE_SDK_UUID; otherwise omitted.
-   */
-  sdk_uuid?: string;
-  /// Block index inside the source row's `message.content[]`. Set when
-  /// `event` is a thinking or assistant_message variant from a multi-block
-  /// row; omitted otherwise.
-  sdk_block_index?: number;
+  session_seq: number;
 }
 
 export interface SessionEndedEvent {
@@ -841,6 +828,13 @@ export interface SessionInfo extends SessionMetadata {
    * The session_seq in the parent session at which the fork happened.
    */
   forked_at_seq?: number;
+  /**
+   * List of command types this session supports. Daemon populates based on
+   * observer vs controller mode and session capabilities. Phone uses this
+   * to show/hide UI affordances instead of probing via error codes.
+   * Example: ['send_message', 'kill_session', 'set_permission_mode', ...]
+   */
+  supported_commands: string[];
 }
 
 export interface FileContentEvent {
@@ -851,11 +845,35 @@ export interface FileContentEvent {
   language?: string;
 }
 
+// ============================================================================
+// Error Codes (v1.0 closed set)
+// ============================================================================
+
+export const ERROR_CODE = {
+  NOT_SUPPORTED: 'not_supported',
+  SESSION_NOT_FOUND: 'session_not_found',
+  UNAUTHORIZED: 'unauthorized',
+  RATE_LIMITED: 'rate_limited',
+  REKEY_REQUIRED: 'rekey_required',
+  SYNC_IN_PROGRESS: 'sync_in_progress',
+  INVALID_SIGNATURE: 'invalid_signature',
+  STALE_NONCE: 'stale_nonce',
+  CHECKPOINT_DISABLED: 'checkpoint_disabled',
+  UNKNOWN_USER_MESSAGE: 'unknown_user_message',
+  OBSERVER_MODE_NOT_SUPPORTED: 'observer_mode_not_supported',
+} as const;
+export type ErrorCode = typeof ERROR_CODE[keyof typeof ERROR_CODE];
+
 export interface ErrorEvent {
   type: 'error';
   request_id?: string;
   message: string;
-  code?: string;
+  /**
+   * Closed-set error code. Known codes are defined in `ERROR_CODE`.
+   * `string` escape hatch allows future cap-gated codes without breaking
+   * existing consumers — phones should handle unknown codes gracefully.
+   */
+  code?: ErrorCode | string;
 }
 
 /**
@@ -867,26 +885,79 @@ export interface ErrorEvent {
  *     terminal injection confirmed in JSONL)
  * Sent once with status='failed' when injection ultimately fails.
  */
+// ============================================================================
+// Message Lifecycle Events (v1.0 — replaces MessageAckEvent)
+// ============================================================================
+
+/**
+ * Daemon received the phone's send_message command and queued it.
+ */
+export interface MessageReceivedEvent {
+  type: 'message_received';
+  client_message_id: string;
+  session_id: string;
+  ts: number;
+}
+
+/**
+ * Message has been committed to the session's input pipeline (SDK input
+ * in controller mode, JSONL echo in observer mode).
+ */
+export interface MessageCommittedEvent {
+  type: 'message_committed';
+  client_message_id: string;
+  session_id: string;
+  ts: number;
+  /** SDK transcript UUID once available (controller-mode follow-up). */
+  sdk_uuid?: string;
+}
+
+/**
+ * Message injection failed permanently.
+ */
+export interface MessageFailedEvent {
+  type: 'message_failed';
+  client_message_id: string;
+  session_id: string;
+  ts: number;
+  error: string;
+}
+
+/**
+ * First assistant token / stream chunk arrived for this user message.
+ * Phone shows "Claude is typing..." feedback keyed to the message.
+ */
+export interface TurnStartedEvent {
+  type: 'turn_started';
+  client_message_id: string;
+  session_id: string;
+  ts: number;
+}
+
+/**
+ * Assistant turn for this user message has finished (all content blocks
+ * delivered, tool results processed). Phone can show "done" state.
+ */
+export interface TurnCompletedEvent {
+  type: 'turn_completed';
+  client_message_id: string;
+  session_id: string;
+  ts: number;
+}
+
+/**
+ * @deprecated Replaced by MessageReceivedEvent / MessageCommittedEvent /
+ * MessageFailedEvent / TurnStartedEvent / TurnCompletedEvent in v1.0.
+ * Retained for one minor cycle (v1.1 removal) so old phones don't break.
+ */
 export interface MessageAckEvent {
   type: 'message_ack';
   client_message_id: string;
   session_id: string;
   status: 'received' | 'committed' | 'failed' | 'turn_started';
-  /** Daemon-side message identifier when committed (currently unused — reserved). */
   server_message_id?: string;
-  /** Failure reason when status='failed'. */
   error?: string;
-  /** Daemon timestamp (epoch ms). */
   ts: number;
-  /**
-   * SDK transcript UUID assigned by Claude Code once the message lands in the
-   * JSONL transcript. Sent in a follow-up `committed` ack from controller-mode
-   * sessions where the daemon couldn't have known the uuid at first ack time.
-   * Phone uses this to enable per-message rewind on bubbles it sent locally.
-   * Omitted on the initial `received`/`committed` ack and on observed-mode
-   * sessions (those echo through session_output user_message which already
-   * carries sdkUuid).
-   */
   sdk_uuid?: string;
 }
 
@@ -1294,6 +1365,11 @@ export type PcEvent =
   | FileContentEvent
   | ErrorEvent
   | MessageAckEvent
+  | MessageReceivedEvent
+  | MessageCommittedEvent
+  | MessageFailedEvent
+  | TurnStartedEvent
+  | TurnCompletedEvent
   | HistoryDivergenceEvent
   | SyncCompleteEvent
   | SyncAckEvent
@@ -1339,14 +1415,44 @@ export type PcEvent =
  * path — do not delete without first redesigning LAN-mode capability
  * negotiation.
  */
-export interface PeerHello {
+/**
+ * Peer-negotiated preferences. Both sides may include these in peer_hello;
+ * the receiving side SHOULD honour them but MAY ignore unknown keys.
+ */
+export interface PeerPreferences {
+  /** How verbose streaming output should be. */
+  streaming_verbosity?: 'low' | 'normal' | 'high';
+  /** Whether tool_use events carry full input or just a summary. */
+  tool_detail?: 'summary' | 'full';
+  /** Desired heartbeat interval in ms (relay/daemon picks closest supported). */
+  heartbeat_interval_ms?: number;
+}
+
+/**
+ * LAN-mode peer hello. Sent inside the encrypted channel after
+ * `lan_auth_result`. Relay-mode uses `PeerHelloControlFrame` instead.
+ *
+ * Renamed from the legacy `PeerHello` (which was ambiguously used for both
+ * LAN and early relay-E2E). LAN-only from v1.0 onwards.
+ */
+export interface LanPeerHello {
   type: 'peer_hello';
   product: 'daemon' | 'app';
   product_version: string;
   wire_version: number;
   capabilities: string[];
   sent_at: number;
+  /** Protocol profile (v1.0+). When set, caps in the profile are implied. */
+  profile?: string;
+  /** Peer preferences for session output behaviour. */
+  preferences?: PeerPreferences;
 }
+
+/**
+ * @deprecated Use `LanPeerHello` for LAN mode. This alias is retained for
+ * one minor cycle so existing imports don't break.
+ */
+export type PeerHello = LanPeerHello;
 
 // ============================================================================
 // Relay Protocol (Envelope)
@@ -1361,6 +1467,20 @@ export interface WakeBlobPayload {
   category?: string;
   session_id?: string;
   request_id?: string;
+}
+
+/**
+ * v1.0 open-schema wake_blob plaintext format. Daemon JSON.stringify's this
+ * before encrypting into the `wake_blob` field. NSE decrypts and parses.
+ *
+ * Old NSE builds that don't understand `version: 1` must ignore unknown keys
+ * in `extensions` and fall back to rendering `body` as-is.
+ */
+export interface WakeBlobPayloadV1 {
+  version: 1;
+  type: 'permission_request' | 'user_question' | 'session_completed' | 'plan_review' | 'session_error';
+  body: string;
+  extensions: Record<string, unknown>;
 }
 
 export interface RelayEnvelope {

@@ -28,7 +28,8 @@ export type RelayControlAction =
   | 'jwt_refresh'
   | 'register_push_token'
   | 'unregister_push_token'
-  | 'peer_hello';
+  | 'peer_hello'
+  | 'clock_sync';
 
 /**
  * Common envelope shape for every relay-control frame. Concrete frames
@@ -58,6 +59,10 @@ export interface PeerHelloControlFrame extends RelayControlFrame {
   wire_version: number;
   capabilities: string[];
   sent_at: number;
+  /** Protocol profile (v1.0+). When set, caps in the profile are implied. */
+  profile?: string;
+  /** Peer preferences for session output behaviour. */
+  preferences?: import('./protocol.js').PeerPreferences;
 }
 
 /** Type guard for inbound dispatch on either peer or relay. */
@@ -72,4 +77,19 @@ export function isPeerHelloControlFrame(
     Array.isArray((frame as PeerHelloControlFrame).capabilities) &&
     typeof (frame as PeerHelloControlFrame).sent_at === 'number'
   );
+}
+
+/**
+ * Relay-authoritative clock sync frame. Pushed by the relay periodically
+ * (every ~5 minutes) after hello. Peers use `server_time_ms` to compute
+ * their local clock offset for display_at rendering and timeout calculations.
+ *
+ * `monotonic_offset_hint_ms` is the relay's estimate of how far the peer's
+ * clock is ahead of the relay (positive = peer is fast). Peers MAY ignore it
+ * and compute their own offset from `server_time_ms - Date.now()`.
+ */
+export interface RelayClockSyncFrame extends RelayControlFrame {
+  action: 'clock_sync';
+  server_time_ms: number;
+  monotonic_offset_hint_ms: number;
 }

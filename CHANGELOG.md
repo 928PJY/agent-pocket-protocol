@@ -11,6 +11,47 @@ constant while peers still announce it).
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-05-15
+
+### BREAKING
+- `SessionOutputEvent.timestamp` renamed to `display_at` — display only, never sort.
+- `SessionOutputEvent.session_seq` is now **required** (was optional).
+- `SessionOutputEvent.sdk_uuid` and `SessionOutputEvent.sdk_block_index` removed — use `event.sdkUuid` / `event.sdkBlockIndex` (single source of truth inside the inner ClaudeEvent).
+- `MessageAckEvent` deprecated (retained 1 minor cycle) — replaced by 5 discrete events: `MessageReceivedEvent`, `MessageCommittedEvent`, `MessageFailedEvent`, `TurnStartedEvent`, `TurnCompletedEvent`.
+- `ErrorEvent.code` narrowed from `string` to `ErrorCode | string` (closed-set `ERROR_CODE` const + escape hatch).
+- `SessionInfo.supported_commands: string[]` is now **required** — daemon must list supported command types per session.
+- `PeerHello` renamed to `LanPeerHello` (LAN-only from v1.0). Type alias retained for compat.
+
+### Added
+- `ERROR_CODE` const-assertion with 11 known error codes.
+- `WakeBlobPayloadV1` open-schema interface (version + type + body + extensions).
+- `LanPeerHello.profile` + `LanPeerHello.preferences` (streaming_verbosity, tool_detail, heartbeat_interval_ms).
+- `PeerHelloControlFrame.profile` + `PeerHelloControlFrame.preferences`.
+- `PeerPreferences` interface.
+- `RelayClockSyncFrame` (relay-control action `clock_sync`): relay-authoritative time push every ~5min.
+- `profiles.ts`: `PROTOCOL_PROFILES` with `v1-baseline` (14 caps), `v1-precise` (23 caps), `v1-full` (29 caps) + `resolveProfile()` helper.
+- `MessageReceivedEvent`, `MessageCommittedEvent`, `MessageFailedEvent`, `TurnStartedEvent`, `TurnCompletedEvent` — discrete message lifecycle events.
+
+### Changed
+- `SessionOutputEvent` slimmed to 5 fields (type, session_id, event, display_at, session_seq + optional agent_type).
+
+### Deprecated (removal in v1.1)
+- `MessageAckEvent` — use the 5 discrete events instead.
+- `PeerHello` type alias — use `LanPeerHello` directly.
+- Legacy enum re-exports (`RiskLevel`, `SessionStatus`, `PermissionDecision` as const values) — use `RISK_LEVEL`, `SESSION_STATUS`, `PERMISSION_DECISION`.
+
+### Migration
+| Consumer | Action |
+|----------|--------|
+| Relay | Handle `clock_sync` frame dispatch; pass through new event types in PcEvent union |
+| Daemon | Emit discrete message lifecycle events (keep legacy MessageAckEvent for 1 cycle); populate `supported_commands` on SessionInfo; set `display_at` instead of `timestamp`; make `session_seq` always-set; stop setting outer `sdk_uuid`/`sdk_block_index`; add `profile` + `preferences` to peer_hello |
+| iOS | Parse new event types; drop `sdk_uuid`/`sdk_block_index` from SessionOutputEvent parsing; rename `timestamp` → `display_at`; handle `session_seq` as non-optional; show `supported_commands` based UI gating; parse profiles; handle clock_sync for offset |
+
+v1.0 release requires all three consumers to have shipped v0.8.0 first. Deprecated items will be removed in v1.1 after one minor cycle.
+
+Refs: 928PJY/agent-pocket-protocol#21
+
+
 ## [0.8.0] - 2026-05-15
 
 ### Added
