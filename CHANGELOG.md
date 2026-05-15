@@ -11,6 +11,34 @@ constant while peers still announce it).
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-05-15
+
+### Added
+- `SignedEnvelope` interface + 4 signed command variants: `SignedSetPermissionModeCommand`, `SignedSetModelCommand`, `SignedKillSessionCommand`, `SignedRewindSessionCommand`. Cap: `security.signed_commands`.
+- `SessionReplacedEvent { old_session_id, new_session_id, reason }`: daemon emits on rewind/compact/fork. Cap: `session.lineage`.
+- `SessionInfo.parent_session_id` + `forked_at_seq`: lineage tracing. Cap: `session.lineage`.
+- `PermissionDismissedEvent.reason`: `rewind` | `session_ended` | `expired` | `user`.
+- `VerifyHistoryCommand.tail_n_uuid_hash`: SHA-1 of last N sdk_uuids for content-level divergence detection. Cap: `history.verify_tail_hash`.
+- `HistoryDivergenceEvent.reason` += `tail_hash_mismatch`.
+- `EmergencyAbortCommand.session_ids`: scoped abort. Cap: `emergency.abort_scoped`.
+- `SessionMetadata` sub-interface shared by `SessionInfo` and `SessionStartedEvent`.
+- 4 new peer capabilities: `security.signed_commands`, `session.lineage`, `history.verify_tail_hash`, `emergency.abort_scoped`.
+
+### Changed (non-breaking)
+- `RiskLevel`, `SessionStatus`, `PermissionDecision` converted from TypeScript enum to const-assertion + literal union. Wire values are identical strings. TS consumers must use `RISK_LEVEL.LOW` (or `RiskLevel.LOW` via the deprecated re-export) instead of `RiskLevel.LOW` enum member access. The deprecated const re-exports (`export const RiskLevel = RISK_LEVEL`) preserve runtime compat for existing compiled code.
+- `SessionInfo` and `SessionStartedEvent` now extend `SessionMetadata` — no wire change, all fields remain optional.
+
+### Deprecated (removal planned for v1.0)
+- `enum RiskLevel` / `enum SessionStatus` / `enum PermissionDecision` — use the `RISK_LEVEL` / `SESSION_STATUS` / `PERMISSION_DECISION` const objects instead.
+- Unsigned `SetPermissionModeCommand` / `SetModelCommand` / `KillSessionCommand` / `RewindSessionCommand` — prefer signed variants when peer announces `security.signed_commands`.
+
+### Migration notes
+- TS consumers: replace `RiskLevel.LOW` with `RISK_LEVEL.LOW` (or keep using the deprecated re-export `RiskLevel.LOW` which still works).
+- Runtime wire is unchanged — all enum values were already plain strings.
+
+Refs: 928PJY/agent-pocket-protocol#21
+
+
 ## [0.7.0] - 2026-05-15
 
 ### Added

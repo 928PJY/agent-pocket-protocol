@@ -243,6 +243,38 @@ export const PEER_CAPABILITIES = {
    * @requires messages.delivery_acks
    */
   MESSAGE_ID_IDEMPOTENT: 'messages.id_idempotent',
+
+  // ---- v0.8.0 capabilities ----
+
+  /**
+   * Both sides support signed command variants (SignedSetPermissionModeCommand,
+   * SignedSetModelCommand, SignedKillSessionCommand, SignedRewindSessionCommand).
+   * When daemon announces this, phone should prefer signed variants over legacy
+   * unsigned commands for all side-effecting operations.
+   */
+  SIGNED_COMMANDS: 'security.signed_commands',
+
+  /**
+   * Daemon emits `session_replaced` events and populates
+   * `SessionInfo.parent_session_id` / `forked_at_seq` for forked sessions.
+   * Phone uses this for lineage UI and to clean up pending state on old sessions.
+   */
+  SESSION_LINEAGE: 'session.lineage',
+
+  /**
+   * Daemon supports `verify_history.tail_n_uuid_hash` for content-level
+   * divergence detection (catches corruption even when count/tail_seq agree).
+   *
+   * @requires history.verify
+   */
+  VERIFY_TAIL_HASH: 'history.verify_tail_hash',
+
+  /**
+   * Daemon supports `emergency_abort.session_ids` for scoped abort (kill only
+   * specific sessions instead of all). When absent, phone omits the field
+   * and daemon kills everything (legacy behaviour).
+   */
+  EMERGENCY_ABORT_SCOPED: 'emergency.abort_scoped',
 } as const;
 
 export type PeerCapability = typeof PEER_CAPABILITIES[keyof typeof PEER_CAPABILITIES];
@@ -277,4 +309,8 @@ export const CURRENT_PEER_CAPABILITIES: PeerCapability[] = [
   PEER_CAPABILITIES.OFFLINE_OVERFLOW,
   PEER_CAPABILITIES.SESSION_HISTORY_CHUNKED,
   PEER_CAPABILITIES.MESSAGE_ID_IDEMPOTENT,
+  PEER_CAPABILITIES.SIGNED_COMMANDS,
+  PEER_CAPABILITIES.SESSION_LINEAGE,
+  PEER_CAPABILITIES.VERIFY_TAIL_HASH,
+  PEER_CAPABILITIES.EMERGENCY_ABORT_SCOPED,
 ];

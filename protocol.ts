@@ -13,28 +13,40 @@ export type AgentType = 'claude_code' | 'codex' | 'gemini' | 'unknown';
 // Enums
 // ============================================================================
 
-export enum RiskLevel {
-  LOW = 'LOW',
-  MEDIUM = 'MEDIUM',
-  HIGH = 'HIGH',
-  CRITICAL = 'CRITICAL',
-}
+export const RISK_LEVEL = {
+  LOW: 'LOW',
+  MEDIUM: 'MEDIUM',
+  HIGH: 'HIGH',
+  CRITICAL: 'CRITICAL',
+} as const;
+export type RiskLevel = typeof RISK_LEVEL[keyof typeof RISK_LEVEL];
 
-export enum SessionStatus {
-  STARTING = 'starting',
-  RUNNING = 'running',
-  READY = 'ready',
-  PENDING_ACTIONS = 'pending_actions',
-  HISTORY = 'history',
-  ERROR = 'error',
-}
+/** @deprecated Use RISK_LEVEL.X instead of RiskLevel.X. Kept as re-export for back-compat. */
+export const RiskLevel = RISK_LEVEL;
 
-export enum PermissionDecision {
-  APPROVE = 'approve',
-  DENY = 'deny',
-  ALWAYS_ALLOW = 'always_allow',
-  APPROVE_MANUAL = 'approve_manual',
-}
+export const SESSION_STATUS = {
+  STARTING: 'starting',
+  RUNNING: 'running',
+  READY: 'ready',
+  PENDING_ACTIONS: 'pending_actions',
+  HISTORY: 'history',
+  ERROR: 'error',
+} as const;
+export type SessionStatus = typeof SESSION_STATUS[keyof typeof SESSION_STATUS];
+
+/** @deprecated Use SESSION_STATUS.X instead of SessionStatus.X. Kept as re-export for back-compat. */
+export const SessionStatus = SESSION_STATUS;
+
+export const PERMISSION_DECISION = {
+  APPROVE: 'approve',
+  DENY: 'deny',
+  ALWAYS_ALLOW: 'always_allow',
+  APPROVE_MANUAL: 'approve_manual',
+} as const;
+export type PermissionDecision = typeof PERMISSION_DECISION[keyof typeof PERMISSION_DECISION];
+
+/** @deprecated Use PERMISSION_DECISION.X instead of PermissionDecision.X. Kept as re-export for back-compat. */
+export const PermissionDecision = PERMISSION_DECISION;
 
 // ============================================================================
 // NDJSON Event Types (Claude Code stdout)
@@ -284,6 +296,72 @@ export interface QuestionResponseCommand {
   answers: Record<string, string>; // question text -> selected answer label
 }
 
+// ============================================================================
+// Signed Command Envelope (v0.8.0)
+// ============================================================================
+
+/**
+ * Common fields for commands that carry an Ed25519 signature + replay
+ * protection. Daemon verifies `phone_signature` over a canonical
+ * serialisation of the command body, rejects stale `nonce` (must be
+ * monotonically increasing per pair), and rejects `timestamp` older than
+ * 60 seconds.
+ *
+ * Existing `PermissionResponseCommand` and `EmergencyAbortCommand` already
+ * carry signature fields inline (legacy shape). New commands below use
+ * SignedEnvelope directly. Legacy shapes are retained for daemon upgrade
+ * window; once all daemons announce `security.signed_commands`, callers
+ * should prefer the signed variants.
+ *
+ * Gated by PEER_CAPABILITIES.SIGNED_COMMANDS.
+ */
+export interface SignedEnvelope {
+  phone_signature: string;
+  nonce: number;
+  timestamp: number;
+}
+
+/**
+ * Signed variant of set_permission_mode. Phone sends this when daemon
+ * announces `security.signed_commands`; otherwise falls back to unsigned
+ * `SetPermissionModeCommand`.
+ */
+export interface SignedSetPermissionModeCommand extends SignedEnvelope {
+  type: 'signed_set_permission_mode';
+  request_id: string;
+  session_id: string;
+  mode: PermissionMode;
+}
+
+/**
+ * Signed variant of set_model.
+ */
+export interface SignedSetModelCommand extends SignedEnvelope {
+  type: 'signed_set_model';
+  request_id: string;
+  session_id: string;
+  model?: string;
+}
+
+/**
+ * Signed variant of kill_session.
+ */
+export interface SignedKillSessionCommand extends SignedEnvelope {
+  type: 'signed_kill_session';
+  session_id: string;
+}
+
+/**
+ * Signed variant of rewind_session.
+ */
+export interface SignedRewindSessionCommand extends SignedEnvelope {
+  type: 'signed_rewind_session';
+  request_id: string;
+  session_id: string;
+  user_message_id: string;
+  dry_run?: boolean;
+}
+
 export interface KillSessionCommand {
   type: 'kill_session';
   session_id: string;
@@ -433,6 +511,13 @@ export interface ReadFileCommand {
 export interface EmergencyAbortCommand {
   type: 'emergency_abort';
   phone_signature: string;
+  /**
+   * When set, only kill the listed sessions (scoped abort). When omitted,
+   * kill ALL active sessions (legacy behaviour preserved).
+   *
+   * Gated by PEER_CAPABILITIES.EMERGENCY_ABORT_SCOPED.
+   */
+  session_ids?: string[];
 }
 
 export interface GetHistoryCommand {
@@ -486,6 +571,16 @@ export interface VerifyHistoryCommand {
   head_seq?: number;
   /** session_seq of the phone's last known message (highest seq). */
   tail_seq?: number;
+  /**
+   * SHA-1 hex of the concatenation of the last N sdk_uuids the phone has
+   * (ordered by session_seq ascending, N defaults to 16). Daemon computes
+   * the same hash over its last N; mismatch triggers history_divergence
+   * with reason 'tail_hash_mismatch'. Detects content divergence even when
+   * count and tail_seq agree (e.g. mid-sequence corruption).
+   *
+   * Gated by PEER_CAPABILITIES.VERIFY_TAIL_HASH.
+   */
+  tail_n_uuid_hash?: string;
 }
 
 /**
@@ -583,28 +678,40 @@ export type PhoneCommand =
   | SessionOutputAckCommand
   | VerifyHistoryCommand
   | SyncRequestCommand
-  | NotificationDeliveryAckCommand;
+  | NotificationDeliveryAckCommand
+  | SignedSetPermissionModeCommand
+  | SignedSetModelCommand
+  | SignedKillSessionCommand
+  | SignedRewindSessionCommand;
 
 // ============================================================================
 // PC → Phone Events
 // ============================================================================
 
-export interface SessionStartedEvent {
+// ============================================================================
+// Session Metadata (shared fields between SessionInfo / SessionStartedEvent)
+// ============================================================================
+
+/**
+ * Common agent/session metadata fields shared between `SessionInfo` and
+ * `SessionStartedEvent`. All fields remain optional for wire compat.
+ */
+export interface SessionMetadata {
+  agent_type?: AgentType;
+  agent_display_name?: string;
+  agent_version?: string;
+  capabilities?: string[];
+  is_observed?: boolean;
+  permission_mode?: PermissionMode;
+  dangerously_skip_permissions?: boolean;
+}
+
+export interface SessionStartedEvent extends SessionMetadata {
   type: 'session_started';
   session_id: string;
   request_id: string;
   working_directory: string;
   project_name?: string;
-  agent_type?: AgentType;
-  agent_display_name?: string;
-  agent_version?: string;
-  capabilities?: string[];
-  /** See SessionInfo.is_observed. */
-  is_observed?: boolean;
-  /** See SessionInfo.permission_mode. */
-  permission_mode?: PermissionMode;
-  /** See SessionInfo.dangerously_skip_permissions. */
-  dangerously_skip_permissions?: boolean;
 }
 
 export interface SessionOutputEvent {
@@ -679,6 +786,15 @@ export interface PermissionDismissedEvent {
   type: 'permission_dismissed';
   request_id: string;
   tool_name: string;
+  /**
+   * Why the permission was dismissed. Helps the phone decide whether to
+   * show a toast or silently clear the pending UI.
+   * - 'rewind': session was rewound past this permission's turn
+   * - 'session_ended': session ended before user responded
+   * - 'expired': TTL elapsed on daemon side
+   * - 'user': user dismissed in terminal (or another phone client)
+   */
+  reason?: 'rewind' | 'session_ended' | 'expired' | 'user';
 }
 
 export interface PermissionExpiredEvent {
@@ -697,12 +813,8 @@ export interface SessionListEvent {
   has_more: boolean;
 }
 
-export interface SessionInfo {
+export interface SessionInfo extends SessionMetadata {
   session_id: string;
-  agent_type?: AgentType;
-  agent_display_name?: string;
-  agent_version?: string;
-  capabilities?: string[];
   status: SessionStatus;
   working_directory: string;
   project_name: string;
@@ -710,26 +822,6 @@ export interface SessionInfo {
   summary?: string;
   entrypoint?: string;
   pid?: number;
-  /**
-   * True when the daemon is observing a terminal-owned Claude session
-   * (JSONL tail + HTTP hooks). False/undefined when the daemon owns the
-   * session via SDK Query (controller mode). Phone uses this to gate
-   * controller-only UI like the permission-mode picker.
-   */
-  is_observed?: boolean;
-  /**
-   * Current SDK permission mode for controller-mode sessions. Updated by
-   * the daemon after a successful set_permission_mode command (or on
-   * session creation). Always undefined for observed sessions.
-   */
-  permission_mode?: PermissionMode;
-  /**
-   * True when this controller-mode session was launched with
-   * `allowDangerouslySkipPermissions: true`, meaning it's eligible to switch
-   * into `bypassPermissions` mode at runtime. Always undefined / false for
-   * observed sessions and for controller sessions that opted out.
-   */
-  dangerously_skip_permissions?: boolean;
   /**
    * Highest `session_seq` the daemon has ever assigned for this session
    * (i.e. the persistent allocator's `tail()`). Phones gate
@@ -740,6 +832,15 @@ export interface SessionInfo {
    * "always request" path.
    */
   tail_seq?: number;
+  /**
+   * Session this one was forked from (via rewind or /compact). Populated
+   * when daemon announces PEER_CAPABILITIES.SESSION_LINEAGE.
+   */
+  parent_session_id?: string;
+  /**
+   * The session_seq in the parent session at which the fork happened.
+   */
+  forked_at_seq?: number;
 }
 
 export interface FileContentEvent {
@@ -800,7 +901,7 @@ export interface HistoryDivergenceEvent {
   expected_count: number;
   /** Daemon's tail seq (last assigned session_seq for this session). */
   expected_tail_seq?: number;
-  reason: 'count_mismatch' | 'tail_seq_mismatch' | 'head_seq_mismatch';
+  reason: 'count_mismatch' | 'tail_seq_mismatch' | 'head_seq_mismatch' | 'tail_hash_mismatch';
 }
 
 /**
@@ -1115,6 +1216,21 @@ export interface RewindSessionResponseEvent {
 }
 
 /**
+ * Daemon emits this when a session is replaced by a new one (rewind fork,
+ * compact, or explicit fork). Phone should clear pending state for the old
+ * session and optionally migrate UI to the new one.
+ *
+ * Gated by PEER_CAPABILITIES.SESSION_LINEAGE.
+ */
+export interface SessionReplacedEvent {
+  type: 'session_replaced';
+  old_session_id: string;
+  new_session_id: string;
+  reason: 'rewind' | 'compact' | 'fork';
+  ts: number;
+}
+
+/**
  * Daemon acknowledges receipt and processing of a phone's permission_response
  * command. Emitted immediately so the phone can exit its "spinner" state
  * without waiting for the slower SessionStatusEvent transition.
@@ -1192,7 +1308,8 @@ export type PcEvent =
   | RewindSessionResponseEvent
   | PermissionResponseAckEvent
   | OfflineOverflowEvent
-  | SessionHistoryChunkEvent;
+  | SessionHistoryChunkEvent
+  | SessionReplacedEvent;
 
 // ============================================================================
 // Peer Hello (E2E, peer-to-peer)
