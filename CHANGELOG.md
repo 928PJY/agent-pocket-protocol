@@ -11,6 +11,25 @@ constant while peers still announce it).
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-05-16
+
+### Added
+- `PEER_CAPABILITIES.HISTORY_CURSOR_MS` (`history.cursor_ms`)。当 peer 宣告此 cap 时，history pagination 用 daemon 时间戳（epoch ms）做 cursor，取代 `session_seq`：
+  - `GetHistoryCommand.since_ms?: number` — 优先级高于 `since_seq` / `since`。
+  - `SyncRequestCommand.known_ms?: Record<string, number>` — 与 `known_seqs` 并存；daemon 在 cap 下用 `known_ms`。
+  - `VerifyHistoryCommand.tail_ms?` / `head_ms?` — 同语义，单位 ms。
+  - `SessionInfo.tail_ms?` — daemon tail timestamp，用于 phone 端 short-circuit `loadInitialMessages`。
+  - `SyncCompleteEvent.delivered[].last_ms?` / `SessionHistoryDoneEvent.last_ms?` — flush 末尾 timestamp。
+  - `HistoryDivergenceEvent.expected_tail_ms?` + `reason: 'tail_ms_mismatch'`。
+- 老字段（`since_seq` / `tail_seq` / `known_seqs` / `head_seq` / `last_seq`）保留并标 `@deprecated`，便于过渡期 daemon/iOS 双向兼容。
+
+### Why
+Phone 端 sort + dedup 之前依赖 `session_seq` + `sdk_uuid`，但 daemon 在 tool_use 行上并不总是填 `sdk_uuid`（实测占比可达 46%）。fingerprint 退化到 `tooluse|local|<id>` 与 live `sdk|<uuid>` 永不匹配，导致同一逻辑 row 重复显示。改用 daemon 时间戳做 cursor 后，phone 完全信任 daemon 在 `session_history` 里的发送顺序，不再本地重排。
+
+Refs: agent-pocket#258
+
+## [0.6.4-hotfix] - 2026-05-15
+
 ### Removed
 - `PERMISSION_TTL_SECONDS` 常量。死代码——daemon 从未 import 它，自己用 `CONTROLLER_PERMISSION_TTL_SECONDS = 0`。删除以避免误导。
 
