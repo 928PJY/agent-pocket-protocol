@@ -443,6 +443,21 @@ export interface GetHistoryCommand {
    * timestamp strictly greater than this. When present and the peer
    * announces PEER_CAPABILITIES.HISTORY_CURSOR_MS, takes precedence
    * over both `since_seq` and `since`.
+   *
+   * Ordering contract under this cap:
+   *   - Daemon emits `messages[]` in its authoritative order, sorted by
+   *     (timestamp_ms ASC, JSONL physical row index ASC). The second key
+   *     resolves same-ms clusters — common on assistant-content blocks
+   *     and `permission_request` synth pairs — using the order Claude
+   *     SDK wrote the rows to JSONL (the real "happens-before" oracle).
+   *   - The `timestamp` field on each row is the daemon's normalised ms
+   *     value (re-encoded to ISO for wire compat). Rows missing a source
+   *     timestamp are filled with `prev_row_ms + 1` so they sort stably
+   *     adjacent to their parse-neighbour instead of drifting to either
+   *     end of the page.
+   *   - Phone MUST NOT re-sort the array. The cursor for the next call
+   *     is `tail_ms` from the response (or the last row's normalised
+   *     `timestamp` parsed back to ms — identical value).
    */
   since_ms?: number;
   /** Offset from the end of the message array (0 = most recent page). */
