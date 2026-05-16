@@ -60,6 +60,32 @@ export interface AssistantMessageEvent {
   /// See ThinkingEvent.sdkUuid — same semantics for assistant text blocks.
   sdkUuid?: string;
   sdkBlockIndex?: number;
+  /**
+   * Metrics for the turn that ended on this assistant message. Set only on
+   * the assistant message whose JSONL row carries `stop_reason === 'end_turn'`
+   * (i.e. the last message of a turn). Phone renders it as a chip attached
+   * to that message bubble — replaces the legacy
+   * `output_type: 'completion_metrics'` system chip from the Stop hook.
+   *
+   * Gated by PEER_CAPABILITIES.MESSAGES_TURN_METRICS. Old phones ignore the
+   * unknown field; old daemons never set it.
+   */
+  turnMetrics?: TurnMetrics;
+}
+
+/**
+ * Per-turn aggregates the daemon computes from the JSONL transcript when an
+ * assistant row carries `stop_reason === 'end_turn'`. Shape mirrors the
+ * daemon's `readLastTurnSummary` return value.
+ */
+export interface TurnMetrics {
+  /// Sum of input + cache + output tokens across the assistant rows of this turn.
+  totalTokens: number;
+  /// Number of tool_use blocks emitted during this turn.
+  toolUseCount: number;
+  /// Wall-clock seconds from the user message that started the turn to the
+  /// end_turn assistant message.
+  durationSec: number;
 }
 
 export interface ToolUseEvent {

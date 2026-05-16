@@ -11,6 +11,19 @@ constant while peers still announce it).
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-05-16
+
+### Added
+- `PEER_CAPABILITIES.MESSAGES_TURN_METRICS` (`messages.turn_metrics`)。daemon 把每轮的 token / tool_use / duration 直接挂在该轮最后一条 assistant message 上：
+  - `AssistantMessageEvent.turnMetrics?: TurnMetrics` — 仅在该行 JSONL 的 `stop_reason === 'end_turn'` 时设置；中间行（`tool_use` 等）保持 `undefined`。
+  - 新类型 `TurnMetrics { totalTokens, toolUseCount, durationSec }`，形状对齐 daemon 的 `readLastTurnSummary`。
+- iOS 在带此 cap 的 daemon 下，将 metrics 渲染为该消息气泡尾部的 chip。
+- 当 phone 宣告此 cap 时，daemon 停发旧的 `output_type: 'completion_metrics'` session_output；老 phone 仍按旧路径展示。
+- 完成通知（push）两条路径下都不再包含 metric 文本 —— metrics 只在聊天里以 chip 呈现。
+
+### Why
+旧路径走 Stop hook + 500ms `setTimeout`，**只有 observer mode 触发**（controller mode 走 SDK，没有 hook 回调），controller 会话从来没有 metrics。end_turn 信号在 `session-observer` 里两种模式都识别，从这里挂 metrics 可以统一覆盖，并消除排序 hack。
+
 ## [0.8.0] - 2026-05-16
 
 ### Added
