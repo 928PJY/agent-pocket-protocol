@@ -435,8 +435,31 @@ export interface GetHistoryCommand {
   /**
    * Only return messages with session_seq strictly greater than this.
    * When present, takes precedence over `since` for gap-fill on reconnect.
+   * @deprecated Prefer `since_ms` under PEER_CAPABILITIES.HISTORY_CURSOR_MS.
    */
   since_seq?: number;
+  /**
+   * Daemon-side timestamp (epoch ms) — only return messages with
+   * timestamp strictly greater than this. When present and the peer
+   * announces PEER_CAPABILITIES.HISTORY_CURSOR_MS, takes precedence
+   * over both `since_seq` and `since`.
+   *
+   * Ordering contract under this cap:
+   *   - Daemon emits `messages[]` in its authoritative order, sorted by
+   *     (timestamp_ms ASC, JSONL physical row index ASC). The second key
+   *     resolves same-ms clusters — common on assistant-content blocks
+   *     and `permission_request` synth pairs — using the order Claude
+   *     SDK wrote the rows to JSONL (the real "happens-before" oracle).
+   *   - The `timestamp` field on each row is the daemon's normalised ms
+   *     value (re-encoded to ISO for wire compat). Rows missing a source
+   *     timestamp are filled with `prev_row_ms + 1` so they sort stably
+   *     adjacent to their parse-neighbour instead of drifting to either
+   *     end of the page.
+   *   - Phone MUST NOT re-sort the array. The cursor for the next call
+   *     is `tail_ms` from the response (or the last row's normalised
+   *     `timestamp` parsed back to ms — identical value).
+   */
+  since_ms?: number;
   /** Offset from the end of the message array (0 = most recent page). */
   offset?: number;
   /** Number of messages to return per page (default 30). */
@@ -474,10 +497,28 @@ export interface VerifyHistoryCommand {
   count: number;
   /** Phone's in-memory message cap. When count == max_count, count divergence is expected. */
   max_count?: number;
-  /** session_seq of the phone's first known message (lowest seq). */
+  /**
+   * session_seq of the phone's first known message (lowest seq).
+   * @deprecated Prefer `head_ms` under PEER_CAPABILITIES.HISTORY_CURSOR_MS.
+   */
   head_seq?: number;
-  /** session_seq of the phone's last known message (highest seq). */
+  /**
+   * session_seq of the phone's last known message (highest seq).
+   * @deprecated Prefer `tail_ms` under PEER_CAPABILITIES.HISTORY_CURSOR_MS.
+   */
   tail_seq?: number;
+  /**
+   * Daemon timestamp (epoch ms) of the phone's first known message.
+   * Sent under PEER_CAPABILITIES.HISTORY_CURSOR_MS; daemon compares
+   * against its own head timestamp for this session.
+   */
+  head_ms?: number;
+  /**
+   * Daemon timestamp (epoch ms) of the phone's last known message.
+   * Sent under PEER_CAPABILITIES.HISTORY_CURSOR_MS; daemon compares
+   * against its own tail timestamp for this session.
+   */
+  tail_ms?: number;
 }
 
 /**
@@ -514,8 +555,17 @@ export interface SyncRequestCommand {
    * Phone's local watermark map: session_id → highest session_seq seen.
    * Empty object is valid (cold start). Daemon treats missing entries as
    * "phone has not seen this session" and backfills the tail window.
+   * @deprecated Prefer `known_ms` under PEER_CAPABILITIES.HISTORY_CURSOR_MS.
+   *             Both fields may be sent; daemon prefers `known_ms` when present.
    */
   known_seqs: Record<string, number>;
+  /**
+   * Phone's local watermark map: session_id → highest daemon timestamp
+   * (epoch ms) seen. Used in place of `known_seqs` under
+   * PEER_CAPABILITIES.HISTORY_CURSOR_MS. Same scope semantics as
+   * `known_seqs` (hint only — daemon decides which sessions to ship).
+   */
+  known_ms?: Record<string, number>;
 }
 
 export type NotificationDeliveryEventType =
@@ -722,6 +772,13 @@ export interface SessionInfo {
    * "always request" path.
    */
   tail_seq?: number;
+  /**
+   * Daemon timestamp (epoch ms) of the most recent message for this
+   * session. Under PEER_CAPABILITIES.HISTORY_CURSOR_MS phones use this
+   * (instead of `tail_seq`) to short-circuit `loadInitialMessages` when
+   * the disk-cache tail timestamp already matches.
+   */
+  tail_ms?: number;
 }
 
 export interface FileContentEvent {
@@ -782,7 +839,14 @@ export interface HistoryDivergenceEvent {
   expected_count: number;
   /** Daemon's tail seq (last assigned session_seq for this session). */
   expected_tail_seq?: number;
-  reason: 'count_mismatch' | 'tail_seq_mismatch' | 'head_seq_mismatch';
+  /**
+   * Daemon's tail timestamp (epoch ms of the most recent message). Sent
+   * under PEER_CAPABILITIES.HISTORY_CURSOR_MS in place of (or alongside)
+   * `expected_tail_seq` so the phone can compare against its disk tail
+   * timestamp instead of a seq.
+   */
+  expected_tail_ms?: number;
+  reason: 'count_mismatch' | 'tail_seq_mismatch' | 'head_seq_mismatch' | 'tail_ms_mismatch';
 }
 
 /**
@@ -799,7 +863,13 @@ export interface HistoryDivergenceEvent {
 export interface SyncCompleteEvent {
   type: 'sync_complete';
   request_id: string;
-  delivered: Array<{ session_id: string; last_seq: number }>;
+  /**
+   * Per-session terminal cursors for what the daemon just flushed.
+   * `last_seq` is always populated for legacy peers; `last_ms` is
+   * populated under PEER_CAPABILITIES.HISTORY_CURSOR_MS and carries
+   * the daemon timestamp (epoch ms) of the final flushed message.
+   */
+  delivered: Array<{ session_id: string; last_seq: number; last_ms?: number }>;
 }
 
 /**
@@ -839,6 +909,13 @@ export interface SessionHistoryDoneEvent {
   request_id: string;
   session_id: string;
   last_seq: number;
+  /**
+   * Daemon timestamp (epoch ms) of the final message just flushed for
+   * this session. Sent under PEER_CAPABILITIES.HISTORY_CURSOR_MS;
+   * phones use this (in place of `last_seq`) to record the per-session
+   * cursor that will feed the next `sync_request.known_ms`.
+   */
+  last_ms?: number;
 }
 
 /**

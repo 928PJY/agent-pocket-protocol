@@ -165,6 +165,37 @@ export const PEER_CAPABILITIES = {
    * legacy "always request, blind full refetch" behaviour.
    */
   MESSAGES_PRECISE_DIVERGENCE: 'messages.precise_divergence',
+
+  /**
+   * History pagination uses daemon-side timestamp (epoch ms) as cursor
+   * instead of `session_seq`. When a peer announces this cap:
+   *   - phone may set `since_ms` on `get_history` and `last_ms` on each
+   *     `sync_request.cursors[]` entry,
+   *   - daemon emits `tail_ms` on `session_history` and on
+   *     `sync_complete.delivered[]`, and may emit `expected_tail_ms`
+   *     plus `reason: 'tail_ms_mismatch'` on `history_divergence`,
+   *   - phone may set `tail_ms` / `head_ms` on `verify_history`.
+   *
+   * Ordering contract: under this cap the daemon sorts each history
+   * page by (timestamp_ms ASC, JSONL physical row index ASC) and the
+   * phone trusts that order verbatim — no client-side re-sort. The
+   * second key handles same-ms clusters (assistant content blocks,
+   * synthetic permission_request markers) by reusing the SDK's
+   * happens-before order from the JSONL file. Rows lacking a source
+   * timestamp are filled with `prev_row_ms + 1` and the normalised ms
+   * is what appears on the wire.
+   *
+   * Peers that lack this cap stay on the seq-based fields. The two are
+   * additive on the wire and can coexist during rollout — the receiver
+   * uses the cursor it understands and ignores the rest.
+   *
+   * Why: phone-side sort/dedup that depended on `session_seq` proved
+   * fragile because the daemon does not always populate sdk_uuid on
+   * tool_use rows. Switching the cursor to timestamp lets the phone
+   * trust daemon emission order verbatim instead of reconstructing
+   * order from a per-row seq the daemon may not have.
+   */
+  HISTORY_CURSOR_MS: 'history.cursor_ms',
 } as const;
 
 export type PeerCapability = typeof PEER_CAPABILITIES[keyof typeof PEER_CAPABILITIES];
@@ -190,4 +221,5 @@ export const CURRENT_PEER_CAPABILITIES: PeerCapability[] = [
   PEER_CAPABILITIES.SYNC_ACK,
   PEER_CAPABILITIES.MESSAGES_SEQ_AUTHORITATIVE,
   PEER_CAPABILITIES.MESSAGES_PRECISE_DIVERGENCE,
+  PEER_CAPABILITIES.HISTORY_CURSOR_MS,
 ];
