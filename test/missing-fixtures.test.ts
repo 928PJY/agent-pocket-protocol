@@ -12,7 +12,10 @@ import type {
   GetHistoryCommand,
   SetPreferencesCommand,
   InterruptSessionCommand,
+  AssistantMessageEvent,
+  TurnMetrics,
 } from '../protocol.js';
+import { PEER_CAPABILITIES, CURRENT_PEER_CAPABILITIES } from '../capabilities.js';
 
 test('EmergencyAbortCommand shape', () => {
   const cmd: EmergencyAbortCommand = {
@@ -127,4 +130,34 @@ test('InterruptSessionCommand shape', () => {
   };
   assert.equal(cmd.type, 'interrupt_session');
   assert.equal(typeof cmd.session_id, 'string');
+});
+
+test('AssistantMessageEvent.turnMetrics shape (cap MESSAGES_TURN_METRICS)', () => {
+  const metrics: TurnMetrics = {
+    totalTokens: 12345,
+    toolUseCount: 4,
+    durationSec: 18,
+  };
+  const ev: AssistantMessageEvent = {
+    type: 'assistant_message',
+    message: 'final answer',
+    sdkUuid: 'uuid-tail',
+    sdkBlockIndex: 0,
+    turnMetrics: metrics,
+  };
+  assert.equal(ev.type, 'assistant_message');
+  assert.equal(ev.turnMetrics?.toolUseCount, 4);
+  assert.equal(typeof ev.turnMetrics?.totalTokens, 'number');
+  assert.equal(typeof ev.turnMetrics?.durationSec, 'number');
+
+  // turnMetrics is optional — non-end_turn rows omit it.
+  const intermediate: AssistantMessageEvent = {
+    type: 'assistant_message',
+    message: 'mid-turn text before a tool_use',
+  };
+  assert.equal(intermediate.turnMetrics, undefined);
+
+  // Cap is announced in this build.
+  assert.ok(CURRENT_PEER_CAPABILITIES.includes(PEER_CAPABILITIES.MESSAGES_TURN_METRICS));
+  assert.equal(PEER_CAPABILITIES.MESSAGES_TURN_METRICS, 'messages.turn_metrics');
 });

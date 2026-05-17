@@ -196,6 +196,29 @@ export const PEER_CAPABILITIES = {
    * order from a per-row seq the daemon may not have.
    */
   HISTORY_CURSOR_MS: 'history.cursor_ms',
+
+  /**
+   * Daemon attaches `turnMetrics` to the `AssistantMessageEvent` whose JSONL
+   * row carries `stop_reason === 'end_turn'` (the last message of a turn).
+   * Phone renders the metrics as a chip on that message bubble.
+   *
+   * Why: the legacy Stop-hook path only fired in observer mode (controller
+   * mode uses the SDK and has no hooks), so controller sessions never
+   * showed metrics. End_turn is detected in session-observer for BOTH
+   * modes, so attaching there gives uniform coverage and removes the 500ms
+   * ordering hack the Stop-hook path needed.
+   *
+   * Backwards-compat: when the peer (phone) lacks this cap, the daemon
+   * must omit `turnMetrics` AND keep emitting the legacy
+   * `output_type: 'completion_metrics'` session_output for that turn.
+   * When both sides have the cap, the daemon stops emitting the legacy
+   * frame so the chip is not duplicated.
+   *
+   * Notifications: completion notification text no longer includes the
+   * metrics subtitle on either path — phones surface the chip in chat
+   * instead.
+   */
+  MESSAGES_TURN_METRICS: 'messages.turn_metrics',
 } as const;
 
 export type PeerCapability = typeof PEER_CAPABILITIES[keyof typeof PEER_CAPABILITIES];
@@ -222,4 +245,5 @@ export const CURRENT_PEER_CAPABILITIES: PeerCapability[] = [
   PEER_CAPABILITIES.MESSAGES_SEQ_AUTHORITATIVE,
   PEER_CAPABILITIES.MESSAGES_PRECISE_DIVERGENCE,
   PEER_CAPABILITIES.HISTORY_CURSOR_MS,
+  PEER_CAPABILITIES.MESSAGES_TURN_METRICS,
 ];
