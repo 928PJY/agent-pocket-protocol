@@ -11,7 +11,7 @@ constant while peers still announce it).
 
 ## [Unreleased]
 
-## [0.9.0] - 2026-05-18
+## [0.8.2] - 2026-05-19
 
 ### Added
 - `PEER_CAPABILITIES.CODEX_TAG_EXTRACTION` (`codex.tag_extraction`)。daemon 把 Codex transcript 里的 XML 风格元标签从消息正文剥离，改成结构化 ClaudeEvent 下发；phone 据此给每类标签做专属 UI（状态条 / 模式 badge / 折叠提示 / 引用卡片），不再把原始 `<tag>` 漏到聊天气泡。覆盖 5 类标签 → 5 个新事件：
