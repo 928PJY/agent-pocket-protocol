@@ -198,6 +198,30 @@ export const PEER_CAPABILITIES = {
   HISTORY_CURSOR_MS: 'history.cursor_ms',
 
   /**
+   * Daemon extracts Codex transcript meta-tags from assistant/developer
+   * message text and re-emits them as structured ClaudeEvents instead of
+   * leaving the raw tags inline. Covers:
+   *   - `<environment_context>`   → CodexEnvironmentContextEvent
+   *   - `<collaboration_mode>`    → CodexCollaborationModeEvent
+   *   - `<skills_instructions>`   → CodexSkillsListingEvent
+   *   - `<system-reminder>`       → CodexSystemReminderEvent
+   *   - `<oai-mem-citation>`      → CodexMemCitationEvent
+   *
+   * Under this cap the daemon strips recognised tags from the originating
+   * message text before forwarding, so the phone renders clean prose plus
+   * dedicated sub-events. Unrecognised tags are left inline (no data loss).
+   *
+   * When the peer (phone) lacks this cap, the daemon must keep emitting
+   * the raw message text with tags inline — old iOS builds render them
+   * as literal text and have no UI for the structured events.
+   *
+   * Only applies to `agent_type === 'codex'` sessions; Claude Code's
+   * `<command-name>` / `<local-command-stdout>` path is unaffected and
+   * still gated by PEER_CAPABILITIES.LOCAL_COMMAND.
+   */
+  CODEX_TAG_EXTRACTION: 'codex.tag_extraction',
+
+  /**
    * Daemon attaches `turnMetrics` to the `AssistantMessageEvent` whose JSONL
    * row carries `stop_reason === 'end_turn'` (the last message of a turn).
    * Phone renders the metrics as a chip on that message bubble.
@@ -246,4 +270,5 @@ export const CURRENT_PEER_CAPABILITIES: PeerCapability[] = [
   PEER_CAPABILITIES.MESSAGES_PRECISE_DIVERGENCE,
   PEER_CAPABILITIES.HISTORY_CURSOR_MS,
   PEER_CAPABILITIES.MESSAGES_TURN_METRICS,
+  PEER_CAPABILITIES.CODEX_TAG_EXTRACTION,
 ];

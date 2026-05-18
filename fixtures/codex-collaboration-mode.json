@@ -1,0 +1,7 @@
+{
+  "type": "codex_collaboration_mode",
+  "mode": "Default",
+  "body": "You are now in Default mode. Any previous instructions for other modes (e.g. Plan mode) are no longer active.\n\nYour active mode changes only when new developer instructions with a different `<collaboration_mode>...</collaboration_mode>` block arrive.",
+  "timestamp": "2026-05-16T06:31:54.887Z",
+  "sdkUuid": "019e2f7a-cdcf-7c00-a1ae-332de2118ef1"
+}

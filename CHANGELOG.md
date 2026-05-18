@@ -11,6 +11,25 @@ constant while peers still announce it).
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-05-18
+
+### Added
+- `PEER_CAPABILITIES.CODEX_TAG_EXTRACTION` (`codex.tag_extraction`)。daemon 把 Codex transcript 里的 XML 风格元标签从消息正文剥离，改成结构化 ClaudeEvent 下发；phone 据此给每类标签做专属 UI（状态条 / 模式 badge / 折叠提示 / 引用卡片），不再把原始 `<tag>` 漏到聊天气泡。覆盖 5 类标签 → 5 个新事件：
+  - `CodexEnvironmentContextEvent` —— `<environment_context>` 解析出的 `cwd / shell / current_date / timezone`。
+  - `CodexCollaborationModeEvent` —— `<collaboration_mode>` 解析出的 `mode + body`。
+  - `CodexSkillsListingEvent` —— `<skills_instructions>` 解析出的 skill 列表（`CodexSkillInfo[]`）。
+  - `CodexSystemReminderEvent` —— `<system-reminder>` 解析出的 `text`（保留 `severity?` 字段供后续扩展）。
+  - `CodexMemCitationEvent` —— `<oai-mem-citation>` 解析出的 `entries[]`（含 `path / line_start / line_end / note?`）+ `rollout_ids[]`。
+- 5 个对应 fixture（`codex-environment-context.json` 等），均取自真实 Codex session `019e2f7a-cdcf-7c00-a1ae-332de2118efb`。
+- 5 个 sub-event 全部加入 `ClaudeEvent` 联合类型，沿用既有 `SessionOutputEvent.event` 通路下发。
+
+### Why
+Codex CLI 在 transcript 中持续注入这几类元标签（环境上下文每 turn 一次、协作模式切换声明、运行时温和提示、记忆引用尾注等）。当前 APP 把它们当普通文本一并渲染，与 assistant 正文混在一起、信息层级丢失。把解析下沉到 daemon、用 capability gate 起来后：
+- 老 phone（未宣告 cap）仍收到原始 inline 标签，行为不变；
+- 新 phone 收到干净正文 + 结构化事件，可以按标签类别走专属 UI（参考 Claude Code 那边 `local_command_invoke` / `local_command_output` 的先例）。
+
+Refs: agent-pocket#267
+
 ## [0.8.1] - 2026-05-17
 
 ### Added

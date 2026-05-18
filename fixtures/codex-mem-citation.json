@@ -1,0 +1,23 @@
+{
+  "type": "codex_mem_citation",
+  "entries": [
+    {
+      "path": "MEMORY.md",
+      "line_start": 234,
+      "line_end": 236,
+      "note": "responsesapi citation extraction code pointer"
+    },
+    {
+      "path": "rollout_summaries/2026-02-17T21-23-02-LN3m-weekly_memory_report_pivot_from_git_history.md",
+      "line_start": 10,
+      "line_end": 12,
+      "note": "weekly report format"
+    }
+  ],
+  "rollout_ids": [
+    "019c6e27-e55b-73d1-87d8-4e01f1f75043",
+    "019c7714-3b77-74d1-9866-e1f484aae2ab"
+  ],
+  "timestamp": "2026-05-16T06:40:12.000Z",
+  "sdkUuid": "019e2f7a-cdcf-7c00-a1ae-332de2118ef4"
+}

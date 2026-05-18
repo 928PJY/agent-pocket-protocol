@@ -1,0 +1,17 @@
+{
+  "type": "codex_skills_listing",
+  "skills": [
+    {
+      "name": "imagegen",
+      "description": "Generate or edit raster images when the task benefits from AI-created bitmap visuals such as photos, illustrations, textures, sprites, mockups, or transparent-background cutouts.",
+      "path": "/Users/peijiayin/.codex/skills/.system/imagegen/SKILL.md"
+    },
+    {
+      "name": "openai-docs",
+      "description": "Use when the user asks how to build with OpenAI products or APIs and needs up-to-date official documentation with citations, help choosing the latest model for a use case, or model upgrade and prompt-upgrade guidance.",
+      "path": "/Users/peijiayin/.codex/skills/.system/openai-docs/SKILL.md"
+    }
+  ],
+  "timestamp": "2026-05-16T06:31:54.887Z",
+  "sdkUuid": "019e2f7a-cdcf-7c00-a1ae-332de2118ef2"
+}
