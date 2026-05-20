@@ -227,6 +227,132 @@ export interface CompactSummaryEvent {
   sdkUuid?: string;
 }
 
+// ----------------------------------------------------------------------------
+// Codex meta-tag sub-events (extracted from transcript text)
+//
+// Codex CLI injects several XML-style tags into developer / assistant message
+// bodies (environment context per turn, collaboration-mode declarations on
+// mode switch, skill listings at session start, runtime nudges, and end-of-
+// reply memory citations). Under PEER_CAPABILITIES.CODEX_TAG_EXTRACTION the
+// daemon parses these out of the surrounding text and ships them as the
+// structured events below so the phone can render each with its own UI
+// (status chip, mode badge, footnote card, etc.) instead of leaking raw
+// `<tag>` literals into chat bubbles.
+//
+// Only emitted for `agent_type === 'codex'` sessions.
+// ----------------------------------------------------------------------------
+
+/**
+ * Parsed `<environment_context>` block. Codex re-injects this on every turn
+ * so the phone can keep a live status chip (cwd / shell / date / timezone).
+ * Phones SHOULD NOT render this as a chat bubble; treat it as a session
+ * header update.
+ */
+export interface CodexEnvironmentContextEvent {
+  type: 'codex_environment_context';
+  cwd?: string;
+  shell?: string;
+  /** Codex's `<current_date>` value, ISO date (YYYY-MM-DD). */
+  current_date?: string;
+  /** IANA tz name, e.g. `Asia/Shanghai`. */
+  timezone?: string;
+  /// Source JSONL entry timestamp (ISO 8601).
+  timestamp?: string;
+  /// SDK transcript UUID of the source row.
+  sdkUuid?: string;
+}
+
+/**
+ * Parsed `<collaboration_mode>` block. Codex emits this when the active
+ * collaboration mode changes (Plan ↔ Default ↔ custom). The phone uses
+ * `mode` to switch chat-area chrome (background tint, available actions)
+ * and `body` for the disclosure detail.
+ */
+export interface CodexCollaborationModeEvent {
+  type: 'codex_collaboration_mode';
+  /** Short mode name parsed from the block header (e.g. `Default`, `Plan`). */
+  mode: string;
+  /** Full body text of the block, minus the parsed header. */
+  body: string;
+  /// Source JSONL entry timestamp (ISO 8601).
+  timestamp?: string;
+  /// SDK transcript UUID of the source row.
+  sdkUuid?: string;
+}
+
+export interface CodexSkillInfo {
+  /** Skill identifier, e.g. `imagegen`. */
+  name: string;
+  /** Free-form skill description from `SKILL.md`. */
+  description: string;
+  /** Absolute path to the skill folder's `SKILL.md`, when available. */
+  path?: string;
+}
+
+/**
+ * Parsed `<skills_instructions>` block — the per-session list of skills
+ * Codex has loaded. The phone hides this from the main timeline and shows
+ * it in a session-details drawer ("what tools does the model have right
+ * now").
+ */
+export interface CodexSkillsListingEvent {
+  type: 'codex_skills_listing';
+  skills: CodexSkillInfo[];
+  /// Source JSONL entry timestamp (ISO 8601).
+  timestamp?: string;
+  /// SDK transcript UUID of the source row.
+  sdkUuid?: string;
+}
+
+/**
+ * Parsed `<system-reminder>` block. Lightweight harness nudges (e.g.
+ * "task tools haven't been used recently"). Phone collapses these into a
+ * single discreet row rather than rendering each as a chat bubble.
+ */
+export interface CodexSystemReminderEvent {
+  type: 'codex_system_reminder';
+  text: string;
+  /**
+   * Optional severity hint. Codex doesn't emit this today, but reserved
+   * so future reminder classes (e.g. context-near-limit) can be styled
+   * differently without a wire-format break.
+   */
+  severity?: 'info' | 'warn';
+  /// Source JSONL entry timestamp (ISO 8601).
+  timestamp?: string;
+  /// SDK transcript UUID of the source row.
+  sdkUuid?: string;
+}
+
+export interface CodexMemCitationEntry {
+  /** Memory file path, e.g. `MEMORY.md` or `rollout_summaries/2026-02-17-...md`. */
+  path: string;
+  /** 1-based inclusive start line. */
+  line_start: number;
+  /** 1-based inclusive end line. */
+  line_end: number;
+  /** Optional free-form note Codex attached after `|note=` on the entry. */
+  note?: string;
+}
+
+/**
+ * Parsed `<oai-mem-citation>` block — appended by Codex to the end of
+ * assistant replies to declare which memory entries and prior rollouts
+ * informed the answer. Phone renders this as a footnote card attached to
+ * the assistant bubble (entries → inline-style references; rollout_ids →
+ * tappable links into the session-history viewer).
+ */
+export interface CodexMemCitationEvent {
+  type: 'codex_mem_citation';
+  entries: CodexMemCitationEntry[];
+  /** Rollout (session) UUIDs the model cited as related context. */
+  rollout_ids: string[];
+  /// Source JSONL entry timestamp (ISO 8601).
+  timestamp?: string;
+  /// SDK transcript UUID of the source assistant row.
+  sdkUuid?: string;
+}
+
 export type ClaudeEvent =
   | ThinkingEvent
   | AssistantMessageEvent
@@ -239,7 +365,12 @@ export type ClaudeEvent =
   | LocalCommandInvokeEvent
   | LocalCommandOutputEvent
   | CompactBoundaryEvent
-  | CompactSummaryEvent;
+  | CompactSummaryEvent
+  | CodexEnvironmentContextEvent
+  | CodexCollaborationModeEvent
+  | CodexSkillsListingEvent
+  | CodexSystemReminderEvent
+  | CodexMemCitationEvent;
 
 // ============================================================================
 // Phone → PC Commands

@@ -1,0 +1,7 @@
+{
+  "type": "codex_system_reminder",
+  "text": "The task tools haven't been used recently. If you're working on tasks that would benefit from tracking progress, consider using TaskCreate to add new tasks and TaskUpdate to update task status (set to in_progress when starting, completed when done). Also consider cleaning up the task list if it has become stale. Only use these if relevant to the current work. This is just a gentle reminder - ignore if not applicable.",
+  "severity": "info",
+  "timestamp": "2026-05-16T06:35:00.000Z",
+  "sdkUuid": "019e2f7a-cdcf-7c00-a1ae-332de2118ef3"
+}
