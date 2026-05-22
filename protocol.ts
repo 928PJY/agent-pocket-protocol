@@ -723,6 +723,22 @@ export interface SyncRequestCommand {
    * `known_seqs` (hint only — daemon decides which sessions to ship).
    */
   known_ms?: Record<string, number>;
+  /**
+   * Hint: the phone is currently focused on this session (e.g. just tapped
+   * a completion notification for it). Daemon SHOULD flush this session's
+   * `session_history` + `session_history_done` BEFORE any other session's
+   * backfill frames, so the phone can render fresh tail without waiting for
+   * the full multi-session sync. Ignored when the daemon does not announce
+   * PEER_CAPABILITIES.MESSAGES_SYNC_PRIORITY_SESSION; the field is purely
+   * additive (old daemons keep doing first-come-first-served ordering).
+   *
+   * If the session named here is not in the daemon's sync scope (e.g.
+   * archived / unknown), the hint is dropped silently — the daemon does
+   * not error and continues with the rest of the sync as usual.
+   *
+   * Gated by PEER_CAPABILITIES.MESSAGES_SYNC_PRIORITY_SESSION.
+   */
+  priority_session_id?: string;
 }
 
 export type NotificationDeliveryEventType =

@@ -261,6 +261,24 @@ export const PEER_CAPABILITIES = {
    * never emit them. No behaviour change for either side until both announce.
    */
   MESSAGES_COMPLETION_BARRIER: 'messages.completion_barrier',
+
+  /**
+   * Sync request priority: the phone may include `priority_session_id` on a
+   * `sync_request` to tell the daemon "this session is the one the user is
+   * staring at — flush it first." When announced by the daemon, the daemon
+   * MUST emit that session's `session_history` + `session_history_done`
+   * before any other session's backfill frames. The phone, on receiving
+   * `session_history_done` for the priority session, can commit just that
+   * session's staged frames immediately — perceived latency drops from
+   * "wait for full backfill of every active session" to "wait for one
+   * session's backfill."
+   *
+   * Builds on PEER_CAPABILITIES.SYNC_ACK (which carries `session_history_done`).
+   * If SYNC_ACK is absent, the priority hint is meaningless and ignored.
+   *
+   * Additive: old daemons ignore the field; old phones never set it.
+   */
+  MESSAGES_SYNC_PRIORITY_SESSION: 'messages.sync_priority_session',
 } as const;
 
 export type PeerCapability = typeof PEER_CAPABILITIES[keyof typeof PEER_CAPABILITIES];
@@ -290,4 +308,5 @@ export const CURRENT_PEER_CAPABILITIES: PeerCapability[] = [
   PEER_CAPABILITIES.MESSAGES_TURN_METRICS,
   PEER_CAPABILITIES.CODEX_TAG_EXTRACTION,
   PEER_CAPABILITIES.MESSAGES_COMPLETION_BARRIER,
+  PEER_CAPABILITIES.MESSAGES_SYNC_PRIORITY_SESSION,
 ];

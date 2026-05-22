@@ -1,6 +1,6 @@
 {
   "name": "agent-pocket-protocol",
-  "version": "0.9.0",
+  "version": "0.10.0",
   "description": "Wire protocol, peer capabilities, and constants for the agent-pocket relay, daemon, and clients.",
   "type": "module",
   "main": "./dist/index.js",
