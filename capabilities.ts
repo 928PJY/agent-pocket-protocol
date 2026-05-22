@@ -243,6 +243,42 @@ export const PEER_CAPABILITIES = {
    * instead.
    */
   MESSAGES_TURN_METRICS: 'messages.turn_metrics',
+
+  /**
+   * Daemon populates `completion_seq` and/or `completion_ms` on `wake_blob`
+   * payloads. These are the authoritative cursor of the *last* message in the
+   * turn that the notification refers to — i.e. the high-water mark the phone
+   * must reach to be fully "caught up" to what the notification announced.
+   *
+   * Under this cap the phone uses these values to retire the provisional
+   * notification echo card and close the perceived-latency trace (issue #271)
+   * at the exact moment the cached tail crosses the barrier. Without the cap
+   * the phone falls back to the heuristic clear (`!isSyncing && pending ==
+   * nil`) plus a 500ms `sync_complete` fallback, which mis-fires when the
+   * wake refers to a row the phone already has on disk.
+   *
+   * Additive on the wire: old phones ignore the fields, old daemons simply
+   * never emit them. No behaviour change for either side until both announce.
+   */
+  MESSAGES_COMPLETION_BARRIER: 'messages.completion_barrier',
+
+  /**
+   * Sync request priority: the phone may include `priority_session_id` on a
+   * `sync_request` to tell the daemon "this session is the one the user is
+   * staring at — flush it first." When announced by the daemon, the daemon
+   * MUST emit that session's `session_history` + `session_history_done`
+   * before any other session's backfill frames. The phone, on receiving
+   * `session_history_done` for the priority session, can commit just that
+   * session's staged frames immediately — perceived latency drops from
+   * "wait for full backfill of every active session" to "wait for one
+   * session's backfill."
+   *
+   * Builds on PEER_CAPABILITIES.SYNC_ACK (which carries `session_history_done`).
+   * If SYNC_ACK is absent, the priority hint is meaningless and ignored.
+   *
+   * Additive: old daemons ignore the field; old phones never set it.
+   */
+  MESSAGES_SYNC_PRIORITY_SESSION: 'messages.sync_priority_session',
 } as const;
 
 export type PeerCapability = typeof PEER_CAPABILITIES[keyof typeof PEER_CAPABILITIES];
@@ -271,4 +307,6 @@ export const CURRENT_PEER_CAPABILITIES: PeerCapability[] = [
   PEER_CAPABILITIES.HISTORY_CURSOR_MS,
   PEER_CAPABILITIES.MESSAGES_TURN_METRICS,
   PEER_CAPABILITIES.CODEX_TAG_EXTRACTION,
+  PEER_CAPABILITIES.MESSAGES_COMPLETION_BARRIER,
+  PEER_CAPABILITIES.MESSAGES_SYNC_PRIORITY_SESSION,
 ];

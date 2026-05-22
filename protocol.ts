@@ -723,6 +723,22 @@ export interface SyncRequestCommand {
    * `known_seqs` (hint only — daemon decides which sessions to ship).
    */
   known_ms?: Record<string, number>;
+  /**
+   * Hint: the phone is currently focused on this session (e.g. just tapped
+   * a completion notification for it). Daemon SHOULD flush this session's
+   * `session_history` + `session_history_done` BEFORE any other session's
+   * backfill frames, so the phone can render fresh tail without waiting for
+   * the full multi-session sync. Ignored when the daemon does not announce
+   * PEER_CAPABILITIES.MESSAGES_SYNC_PRIORITY_SESSION; the field is purely
+   * additive (old daemons keep doing first-come-first-served ordering).
+   *
+   * If the session named here is not in the daemon's sync scope (e.g.
+   * archived / unknown), the hint is dropped silently — the daemon does
+   * not error and continues with the rest of the sync as usual.
+   *
+   * Gated by PEER_CAPABILITIES.MESSAGES_SYNC_PRIORITY_SESSION.
+   */
+  priority_session_id?: string;
 }
 
 export type NotificationDeliveryEventType =
@@ -1379,6 +1395,23 @@ export interface WakeBlobPayload {
   category?: string;
   session_id?: string;
   request_id?: string;
+  /**
+   * Authoritative cursor of the *last* message that belongs to the turn this
+   * wake refers to — i.e. the high-water mark the phone must reach to consider
+   * the chat fully "caught up" to what the notification is announcing.
+   *
+   * Populated by daemons that announce `messages.completion_barrier`. The
+   * phone uses these to retire the provisional notification echo card and
+   * close the perceived-latency trace at the exact moment the cached tail
+   * crosses the barrier — instead of guessing with sync_complete + 500ms
+   * fallbacks that mis-fire when the wake refers to a row the phone already
+   * has on disk.
+   *
+   * Both fields are optional and additive: phones that ignore them keep the
+   * heuristic clear; daemons that don't emit them keep the legacy behaviour.
+   */
+  completion_seq?: number;
+  completion_ms?: number;
 }
 
 export interface RelayEnvelope {
