@@ -1379,6 +1379,23 @@ export interface WakeBlobPayload {
   category?: string;
   session_id?: string;
   request_id?: string;
+  /**
+   * Authoritative cursor of the *last* message that belongs to the turn this
+   * wake refers to — i.e. the high-water mark the phone must reach to consider
+   * the chat fully "caught up" to what the notification is announcing.
+   *
+   * Populated by daemons that announce `messages.completion_barrier`. The
+   * phone uses these to retire the provisional notification echo card and
+   * close the perceived-latency trace at the exact moment the cached tail
+   * crosses the barrier — instead of guessing with sync_complete + 500ms
+   * fallbacks that mis-fire when the wake refers to a row the phone already
+   * has on disk.
+   *
+   * Both fields are optional and additive: phones that ignore them keep the
+   * heuristic clear; daemons that don't emit them keep the legacy behaviour.
+   */
+  completion_seq?: number;
+  completion_ms?: number;
 }
 
 export interface RelayEnvelope {
