@@ -11,6 +11,18 @@ constant while peers still announce it).
 
 ## [Unreleased]
 
+## [0.8.3] - 2026-05-22
+
+### Added
+- `PEER_CAPABILITIES.MESSAGES_COMPLETION_BARRIER` (`messages.completion_barrier`)。daemon 在 `wake_blob` 上填 `completion_seq` / `completion_ms` —— 通知所指那一轮最后一条消息的权威游标。phone 用它在缓存 tail 越过 barrier 的瞬间就关掉通知 echo card 和 perceived-latency trace，不再靠 `sync_complete + 500ms` 兜底（当 wake 指向 phone 已经在磁盘上的行时那条 fallback 会误触）。
+- `PEER_CAPABILITIES.MESSAGES_SYNC_PRIORITY_SESSION` (`messages.sync_priority_session`)。phone 可在 `sync_request` 上带 `priority_session_id`；宣告此 cap 的 daemon 必须把该 session 的 `session_history` + `session_history_done` 在所有其他 session 之前发出来。配合既有 `messages.sync_ack` 的 `session_history_done` 终止符，phone 可以只把被聚焦 session 的 staged frames 立刻 commit，不必等关闭整个多 session sync 的 trailing `sync_complete`。
+- `SyncRequestCommand.priority_session_id?: string` —— 上面 cap 对应的请求字段。
+
+### Why
+agent-pocket#271 Iter 4 + Iter 5：当用户从通知进入 app 时，被点中的 session 经常要等整个多 session backfill 走完才能完成首屏；实测 `sync_request → sync_complete` 窗口在多 session 活跃时能到 ~5s。两条 cap 一起把"被聚焦 session 何时算完成"和"perceived-latency trace 何时关闭"都收紧到 barrier 精确点。两者都是 additive —— 老 phone 忽略字段，老 daemon 永不下发。
+
+Refs: agent-pocket#271
+
 ## [0.8.2] - 2026-05-19
 
 ### Added
